@@ -1,0 +1,31 @@
+{
+  "name": "gan-si-sur-sadhana",
+  "version": "1.0.0",
+  "description": "সুর সাধনা Pro - আধুনিক ভারতীয় ও বাংলা সঙ্গীত রেওয়াজ ও পিচ ট্রেইনার প্ল্যাটফর্ম (Node.js & Express)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "echo \"No test specified\" && exit 0"
+  },
+  "keywords": [
+    "music",
+    "riyaz",
+    "indian-classical-music",
+    "pitch-detector",
+    "tanpura",
+    "harmonium",
+    "tabla",
+    "bangla",
+    "nodejs",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}

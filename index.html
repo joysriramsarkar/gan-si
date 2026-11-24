@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>গান-সি | সুর সাধনা Pro - আধুনিক ভারতীয় ও বাংলা সঙ্গীত রেওয়াজ স্যুট</title>
+  <meta name="description" content="লাইভ ভোকাল পিচ ট্রেইনার, অ্যাকোস্টিক তানপুরা, ভার্চুয়াল হারমোনিয়াম, তবলা তাল ও অলংকার সাধনা প্ল্যাটফর্ম।">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">🎵</div>
+      <div class="brand-title">
+        <h1>সুর সাধনা Pro</h1>
+        <p>গান-সি | ভোকাল পিচ ও ক্লাসিক্যাল রেওয়াজ স্যুট</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Scale Quick Picker -->
+      <div class="scale-quick-select" title="আপনার সা (স্কেল) নির্বাচন করুন">
+        <span>সা =</span>
+        <select id="scaleSelect" aria-label="Scale Selector">
+          <option value="0">C (সাদা ১)</option>
+          <option value="1">C# (কালো ১) [পুরুষ]</option>
+          <option value="2">D (সাদা ২)</option>
+          <option value="3">D# (কালো ২)</option>
+          <option value="4">E (সাদা ৩)</option>
+          <option value="5">F (সাদা ৪)</option>
+          <option value="6">F# (কালো ৩)</option>
+          <option value="7">G (সাদা ৫) [নারী]</option>
+          <option value="8">G# (কালো ৪) [নারী]</option>
+          <option value="9">A (সাদা ৬)</option>
+          <option value="10" selected>A# (কালো ৫)</option>
+          <option value="11">B (সাদা ৭)</option>
+        </select>
+      </div>
+
+      <!-- Live Riyaz Stopwatch -->
+      <div class="timer-pill" title="আজকের রেওয়াজ সময়">
+        ⏱️ <span id="sessionTimer">00:00</span>
+      </div>
+
+      <!-- Tanpura Quick Toggle -->
+      <button id="startTanpuraBtn" class="btn-outline" type="button">🪕 তানপুরা</button>
+
+      <!-- Record Button -->
+      <button id="recordBtn" class="btn-outline" type="button">⏺️ রেকর্ড</button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="app-tabs">
+    <button class="tab-btn active" data-tab="tab-pitch">🎙️ লাইভ রেওয়াজ ও পিচ</button>
+    <button class="tab-btn" data-tab="tab-tanpura">🪕 তানপুরা ড্রোন</button>
+    <button class="tab-btn" data-tab="tab-harmonium">🎹 হারমোনিয়াম কিবোর্ড</button>
+    <button class="tab-btn" data-tab="tab-tabla">🥁 তবলা ও তাল</button>
+    <button class="tab-btn" data-tab="tab-alankars">🎼 অলংকার সাধনা</button>
+    <button class="tab-btn" data-tab="tab-ragas">📜 রাগ অভিধান</button>
+    <button class="tab-btn" data-tab="tab-recordings">📁 রেকর্ডিং ও হিস্ট্রি</button>
+  </nav>
+
+  <!-- Main Content Container -->
+  <main class="app-container">
+
+    <!-- 1. LIVE PITCH TRAINER TAB -->
+    <section id="tab-pitch" class="tab-panel active">
+      <div class="grid-2col">
+        <!-- Left: Pitch Display & Tuner -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🎙️ লাইভ ভোকাল পিচ মনিটর</div>
+            <button id="startMicBtn" class="btn-primary" type="button">🎤 রেওয়াজ শুরু করুন</button>
+          </div>
+
+          <!-- Hero Pitch Box -->
+          <div class="pitch-hero" id="pitchHero">
+            <div class="octave-badge" id="saptakBadge">মধ্য সপ্তক (মুদারা)</div>
+            <div class="sargam-huge" id="sargamDisplay">--</div>
+            <div class="note-subdata" id="westernDisplay">নোট: -- | ফ্রিকোয়েন্সি: 0.0 Hz</div>
+
+            <!-- Cents Needle Gauge -->
+            <div class="cents-gauge-wrapper">
+              <div class="cents-bar-track">
+                <div class="cents-target-zone" title="সঠিক সুর অঞ্চল"></div>
+                <div class="cents-center-mark"></div>
+                <div class="cents-pointer" id="pitchNeedle"></div>
+              </div>
+              <div class="cents-labels">
+                <span>নিচু (-50 cents)</span>
+                <span>সঠিক সুর (০)</span>
+                <span>উঁচু (+50 cents)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Pitch Trail Canvas -->
+          <div class="canvas-wrapper">
+            <canvas id="pitchCanvas"></canvas>
+          </div>
+
+          <!-- Swara Matrix of current scale -->
+          <div style="margin-top:16px;">
+            <div style="font-size:0.85rem;color:var(--text-muted);font-weight:600;">বর্তমান স্কেলের স্বরসমূহ (ক্লিক করে শুনুন):</div>
+            <div class="swara-matrix" id="swaraMatrix"></div>
+          </div>
+        </div>
+
+        <!-- Right: Riyaz Guidance & Real-time Stats -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📊 সাধনা অ্যানালিটিক্স ও পরামর্শ</div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-val" id="accuracyScore">--</div>
+              <div class="stat-label">সুর নিখুঁত হার (% In Tune)</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-val">A4 = 440</div>
+              <div class="stat-label">স্ট্যান্ডার্ড পিচ</div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-card-subtle);padding:14px;border-radius:var(--radius-md);border:1px solid var(--border-color);line-height:1.6;font-size:0.88rem;color:var(--text-muted);">
+            <strong style="color:var(--primary);display:block;margin-bottom:6px;">💡 কীভাবে অনুশীলন করবেন:</strong>
+            <ul style="padding-left:18px;display:flex;flex-direction:column;gap:6px;">
+              <li>প্রথমে <strong>"তানপুরা"</strong> চালু করুন এবং আপনার স্কেলের <strong>সা</strong> এর সুরের সাথে কন্ঠ মিলিয়ে দীর্ঘ শ্বাস নিয়ে ‘সা’ ধরুন।</li>
+              <li>পিচ কাটাটি মাঝখানের সবুজ জোনে স্থির রাখলে বুঝবেন আপনার সুর একদম নিখুঁত (In-tune)।</li>
+              <li>স্কেল বেশি উঁচুতে মনে হলে পুরুষরা <strong>C# বা D</strong> এবং নারীরা <strong>G বা G#</strong> বেছে নিন।</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. TANPURA DRONE TAB -->
+    <section id="tab-tanpura" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🪕 অ্যাকোস্টিক তানপুরা ড্রোন ও জোয়ারি সিমুলেটর</div>
+        </div>
+
+        <div class="tanpura-box">
+          <!-- 4 Animated Strings Plucking -->
+          <div class="tanpura-strings-visual">
+            <div class="tanpura-string-col">
+              <div class="tanpura-wire"></div>
+              <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">১ম তার (পা/মা/নি)</span>
+            </div>
+            <div class="tanpura-string-col">
+              <div class="tanpura-wire"></div>
+              <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">২য় তার (সা)</span>
+            </div>
+            <div class="tanpura-string-col">
+              <div class="tanpura-wire"></div>
+              <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">৩য় তার (সা)</span>
+            </div>
+            <div class="tanpura-string-col">
+              <div class="tanpura-wire"></div>
+              <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">৪র্থ তার (খাদের সা)</span>
+            </div>
+          </div>
+
+          <!-- Tanpura Controls -->
+          <div class="tanpura-controls-grid">
+            <div class="form-group">
+              <label for="tanpuraTuningSelect">১ম তারের সুর (First String Tuning):</label>
+              <select id="tanpuraTuningSelect">
+                <option value="0">পঞ্চম (Pa) - সাধারণ ও অধিকাংশ রাগ</option>
+                <option value="1">মধ্যম (Shuddha Ma) - মালকোষ/মারবা ইত্যাদি</option>
+                <option value="2">নিষাদ (Shuddha Ni) - পূরবী/সোহিনী ইত্যাদি</option>
+                <option value="3">ধৈবত (Shuddha Dha) - কিছু বিশেষ রাগ</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tanpuraTempoSlider">তার টানার গতি (Pluck Speed):</label>
+              <input type="range" id="tanpuraTempoSlider" min="20" max="80" value="40">
+            </div>
+
+            <div class="form-group">
+              <label for="tanpuraVolumeSlider">তানপুরা ভলিউম:</label>
+              <input type="range" id="tanpuraVolumeSlider" min="0" max="1" step="0.05" value="0.7">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. HARMONIUM TAB -->
+    <section id="tab-harmonium" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🎹 ভার্চুয়াল হারমোনিয়াম (Virtual Harmonium)</div>
+          <span style="font-size:0.8rem;color:var(--text-muted);">কিবোর্ড দিয়ে বাজাতে পারেন: [A], [W], [S], [E], [D]...</span>
+        </div>
+
+        <div class="harmonium-wrapper">
+          <div class="piano-keyboard" id="harmoniumKeyboard"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. TABLA & METRONOME TAB -->
+    <section id="tab-tabla" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🥁 তবলা ও ছন্দ মেট্রোনম (Tabla Taal Machine)</div>
+          <button id="startTaalBtn" class="btn-primary" type="button">🥁 তাল শুরু করুন</button>
+        </div>
+
+        <div class="tanpura-controls-grid" style="margin-bottom:16px;">
+          <div class="form-group">
+            <label for="taalSelect">তাল নির্বাচন করুন:</label>
+            <select id="taalSelect">
+              <option value="teental">ত্রিতাল (Teental - ১৬ মাত্রা)</option>
+              <option value="keherwa">কাহারবা (Keherwa - ৮ মাত্রা)</option>
+              <option value="dadra">দাদরা (Dadra - ৬ মাত্রা)</option>
+              <option value="rupak">রূপক (Rupak - ৭ মাত্রা)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="taalBpmSlider">লয় / গতি (<span id="taalBpmVal">110 BPM</span>):</label>
+            <input type="range" id="taalBpmSlider" min="40" max="240" value="110">
+          </div>
+        </div>
+
+        <!-- Visual Matras -->
+        <div class="taal-display" id="taalDisplay"></div>
+      </div>
+    </section>
+
+    <!-- 5. ALANKARS PRACTICE TAB -->
+    <section id="tab-alankars" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🎼 অলংকার ও পল্টা রেওয়াজ মডিউল</div>
+        </div>
+        <div class="alankar-list" id="alankarList"></div>
+      </div>
+    </section>
+
+    <!-- 6. RAGAS EXPLORER TAB -->
+    <section id="tab-ragas" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📜 ভারতীয় শাস্ত্রীয় সংগীত রাগ অভিধান</div>
+        </div>
+        <div class="raga-grid" id="ragaGrid"></div>
+      </div>
+    </section>
+
+    <!-- 7. RECORDINGS & HISTORY TAB -->
+    <section id="tab-recordings" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📁 রেওয়াজ রেকর্ডিং ও অডিও লাইব্রেরি</div>
+        </div>
+        <div id="recordingsList" class="recordings-list">
+          <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:20px;">
+            এখনও কোনো রেকর্ডিং সংরক্ষিত হয়নি। উপরে <strong>"⏺️ রেকর্ড"</strong> চাপুন।
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Audio and App Scripts -->
+  <script src="audio-engine.js"></script>
+  <script src="pitch-detector.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
