@@ -24,6 +24,8 @@ class PitchDetector {
     this.maxHistory = 120;
     this.totalSamples = 0;
     this.inTuneSamples = 0;
+    this.rawWindow = []; // P2-1: median window for stability
+    this.lastStableFreq = null;
 
     // Tuning Mode: 'just_intonation' (Shruti ratios) or 'equal_temperament' (12-TET)
     this.tuningSystem = 'just_intonation';
@@ -189,13 +191,24 @@ class PitchDetector {
     const buffer = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(buffer);
     const rawFreq = PitchDetector.mcleodPitch(buffer, window.audioEngine.ctx.sampleRate);
+    // P2-1: octave-fix + median smoothing (fps-independent, confidence-weighted)
+    let procFreq = rawFreq;
+    if (window.PitchFilters && rawFreq > 0) {
+      this.rawWindow.push(rawFreq);
+      if (this.rawWindow.length > 5) this.rawWindow.shift();
+      const med = window.PitchFilters.median(this.rawWindow);
+      const ref = this.lastStableFreq || this.smoothedPitch || med;
+      procFreq = window.PitchFilters.octaveFix(med != null ? med : rawFreq, ref);
+    }
 
-    if (rawFreq > 60 && rawFreq < 1200) {
+    if (procFreq > 60 && procFreq < 1200) {
       if (this.smoothedPitch === null) {
-        this.smoothedPitch = rawFreq;
+        this.smoothedPitch = procFreq;
       } else {
-        this.smoothedPitch = this.smoothedPitch * 0.65 + rawFreq * 0.35;
+        const alpha = 0.35;
+        this.smoothedPitch = this.smoothedPitch * (1 - alpha) + procFreq * alpha;
       }
+      this.lastStableFreq = this.smoothedPitch;
 
       const freq = this.smoothedPitch;
       const baseA4 = (window.audioEngine && window.audioEngine.baseFreqA4) || 440;
@@ -239,13 +252,21 @@ class PitchDetector {
         saptak = "তার সপ্তক (তারা)";
       }
 
-      // Raga Constraint (Apaswara / বর্জিত স্বর)
+      // Raga Constraint (Apaswara / বর্জিত স্বর) — direction-aware via RagaEngine when available
       let isApaswara = false;
       let apaswaraMsg = null;
-      if (this.activeRaga && this.activeRaga.allowedIntervals) {
-        if (!this.activeRaga.allowedIntervals.includes(sargamIndex)) {
-          isApaswara = true;
-          apaswaraMsg = `⚠️ ${this.activeRaga.name}-এ এই স্বরটি বর্জিত (অপস্বর)!`;
+      if (this.activeRaga) {
+        if (window.RagaEngine) {
+          // Guided/learning direction hint (aroha default); full phrase validation lives in raga-engine.js
+          const dir = this.practiceDirection || 'either';
+          const r = window.RagaEngine.validateNote({ sargamIndex, direction: dir, raga: this.activeRaga });
+          isApaswara = !r.ok;
+          apaswaraMsg = r.msg || null;
+        } else if (this.activeRaga.allowedIntervals) {
+          if (!this.activeRaga.allowedIntervals.includes(sargamIndex)) {
+            isApaswara = true;
+            apaswaraMsg = `⚠️ ${this.activeRaga.name}-এ এই স্বরটি বর্জিত (অপস্বর)!`;
+          }
         }
       }
 

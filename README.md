@@ -61,15 +61,38 @@ npm run dev
 
 ---
 
-## 📡 REST API এন্ডপয়েন্টস
+## 📡 REST API এন্ডপয়েন্টস (v2.0)
 
 | মেথড | এন্ডপয়েন্ট | বিবরণ |
 |---|---|---|
-| `GET` | `/api/health` | সার্ভার হেলথ ও আপটাইম চেক |
-| `GET` | `/api/ragas` | সমস্ত রাগের তালিকা, বাদী, সমবাদী, আরোহ, অবরোহ ও বর্জিত স্বর |
-| `GET` | `/api/alankars` | অলংকার ও পল্টার তালিকা |
-| `GET` | `/api/stats` | ধারাবাহিক স্ট্রিক, মোট মিনিট ও প্র্যাকটিস হিস্ট্রি |
-| `POST` | `/api/stats/session` | সম্পন্নকৃত রেওয়াজ সেশনের তথ্য সেভ করা |
-| `GET` | `/api/recordings` | সার্ভারে সংরক্ষিত অডিও ফাইলের তালিকা |
-| `POST` | `/api/recordings` | নতুন অডিও ফাইল আপলোড (WebM) |
-| `DELETE` | `/api/recordings/:filename` | অডিও রেকর্ডিং মুছে ফেলা |
+| `GET` | `/api/health` | সার্ভার হেলথ, ভার্সন ও DB স্ট্যাটাস |
+| `GET` | `/api/ragas?thaat=&search=` | রাগ তালিকা (v2 schema: aroha/avaroha intervals, pakad, verified) |
+| `GET` | `/api/ragas/:id` | একটি রাগের বিস্তারিত |
+| `GET` | `/api/alankars?level=&search=` | অলংকার তালিকা (level, pattern, BPM) |
+| `GET` | `/api/theory` | সংগীততত্ত্ব পাঠ্যক্রম + কুইজ |
+| `GET` | `/api/stats?range=7d\|30d\|all` | IST স্ট্রিক, মোট মিনিট ও হিস্ট্রি (SQLite) |
+| `POST` | `/api/stats/session` | সেশন সেভ `{minutes:1..180, accuracy?:0..100, raga_id?, alankar_id?}` |
+| `GET` | `/api/recordings` | রেকর্ডিং তালিকা (stream URL সহ) |
+| `POST` | `/api/recordings` | অডিও আপলোড — strict MIME + magic-byte যাচাই |
+| `POST` | `/api/users` | ব্যক্তিগত ব্যবহারকারী + token তৈরি `{username}` |
+| `GET` | `/api/users/me` | বর্তমান ব্যবহারকারী (Bearer token) |
+| `GET` | `/api/recordings/:filename/stream` | ব্যক্তিগত স্ট্রিম (Range support; ownership check; পুরোনো `/recordings-stream/*` redirect হয়) |
+| `DELETE` | `/api/recordings/:filename` | রেকর্ডিং মুছে ফেলা |
+
+Privacy: ব্যক্তিগত রেকর্ডিং default = ব্রাউজার IndexedDB; সার্ভার আপলোড ঐচ্ছিক ব্যাকআপ।
+
+## 🧪 যাচাই
+
+```powershell
+npm test              # 38 unit/integration
+npm run validate:ragas
+npm run test:browser  # 6 headless-Chrome specs (tabs, theory, generator, ear, mic start/stop)
+```
+
+## 📱 Android / PWA
+
+`docs/ANDROID.md` দেখুন (Capacitor config + অডিও পরীক্ষা-তালিকা)। আইকন (`icon-192/512.png`) ও SW v2 সহ installable PWA।
+
+## ✅ সংগীততাত্ত্বিক যাচাই
+
+`docs/VERIFICATION.md` — সব কন্টেন্ট `verified:false` দিয়ে শুরু; মানুষের যাচাই ছাড়া `true` নয়।

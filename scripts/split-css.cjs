@@ -1,0 +1,13 @@
+const fs = require('fs');
+const s = fs.readFileSync('public/style.css', 'utf8');
+const themeRe = /(:root|\[data-theme[^\]]*\])\s*\{[^}]*\}/g;
+const themes = (s.match(themeRe) || []).join('\n\n');
+const mediaRe = /@media[^{]*\{(?:[^{}]*\{[^{}]*\}[^{}]*)*\}/g;
+const media = (s.match(mediaRe) || []).join('\n\n');
+let main = s.replace(themeRe, '').replace(mediaRe, '');
+main = '/* Gan-si main.css */\n' + main;
+fs.mkdirSync('public/css', { recursive: true });
+fs.writeFileSync('public/css/themes.css', '/* Gan-si themes.css */\n' + themes + '\n');
+fs.writeFileSync('public/css/responsive.css', '/* Gan-si responsive.css */\n' + media + '\n');
+fs.writeFileSync('public/css/main.css', main);
+console.log('ok', themes.length, media.length, main.length);

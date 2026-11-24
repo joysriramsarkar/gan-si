@@ -8,6 +8,9 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#f59e0b">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/responsive.css">
 </head>
 <body>
 
@@ -82,6 +85,9 @@
     <button class="tab-btn" data-tab="tab-alankars">🎼 অলংকার সাধনা</button>
     <button class="tab-btn" data-tab="tab-ragas">📜 রাগ অভিধান</button>
     <button class="tab-btn" data-tab="tab-recordings">📁 রেকর্ডিং ও হিস্ট্রি</button>
+    <button class="tab-btn" data-tab="tab-progress">📈 আমার অগ্রগতি</button>
+    <button class="tab-btn" data-tab="tab-theory">📚 তত্ত্ব কেন্দ্র</button>
+    <button class="tab-btn" data-tab="tab-ear">🎧 কান সাধনা</button>
   </nav>
 
   <!-- Main Content Container -->
@@ -237,6 +243,40 @@
               <label for="tanpuraVolumeSlider">তানপুরা ভলিউম:</label>
               <input type="range" id="tanpuraVolumeSlider" min="0" max="1" step="0.05" value="0.7">
             </div>
+
+            <div class="form-group">
+              <label for="tanpuraDecaySlider">ঝালার স্থায়িত্ব (Decay: <span id="tanpuraDecayVal">৪.২</span> সেকেন্ড):</label>
+              <input type="range" id="tanpuraDecaySlider" min="1" max="10" step="0.1" value="4.2">
+            </div>
+
+            <div class="form-group">
+              <label for="tanpuraAutoStopSelect">স্বয়ংক্রিয় বন্ধ (রেওয়াজের সময় অনুযায়ী):</label>
+              <select id="tanpuraAutoStopSelect">
+                <option value="0" selected>বন্ধ নয় (চালু থাকবে)</option>
+                <option value="10">১০ মিনিট</option>
+                <option value="20">২০ মিনিট</option>
+                <option value="30">৩০ মিনিট</option>
+                <option value="60">৬০ মিনিট</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>প্রতি তারের ভলিউম:</label>
+              <div id="tanpuraStringGains" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:0.75rem;">
+                <label>১ম <input type="range" class="tanpura-string-gain" data-string="0" min="0" max="1.5" step="0.05" value="1"></label>
+                <label>২য় <input type="range" class="tanpura-string-gain" data-string="1" min="0" max="1.5" step="0.05" value="1"></label>
+                <label>৩য় <input type="range" class="tanpura-string-gain" data-string="2" min="0" max="1.5" step="0.05" value="1"></label>
+                <label>৪র্থ <input type="range" class="tanpura-string-gain" data-string="3" min="0" max="1.5" step="0.05" value="1"></label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="tanpuraSampleUrl">বাস্তব তানপুরা স্যাম্পল (ঐচ্ছিক URL — না দিলে সিন্থ):</label>
+              <div style="display:flex;gap:6px;">
+                <input type="url" id="tanpuraSampleUrl" placeholder="https://…/tanpura-a2.wav" style="flex:1;">
+                <button id="tanpuraSampleBtn" class="btn-outline" type="button">লোড</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -352,10 +392,83 @@
         <div class="card-header">
           <div class="card-title">📁 রেওয়াজ রেকর্ডিং ও অডিও লাইব্রেরি</div>
         </div>
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;">ব্যক্তিগত রেকর্ডিং প্রথমে আপনার ব্রাউজারে (IndexedDB) থাকে — সার্ভারে পাঠানো ঐচ্ছিক ব্যাকআপ।</div>
         <div id="recordingsList" class="recordings-list">
           <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:20px;">
             এখনও কোনো রেকর্ডিং সংরক্ষিত হয়নি। উপরে <strong>"⏺️ রেকর্ড"</strong> চাপুন।
           </div>
+        </div>
+        <div class="card-header" style="margin-top:14px;"><div class="card-title">🗓️ সাধনা ক্যালেন্ডার</div></div>
+        <div id="practiceCalendar" style="display:grid;grid-template-columns:repeat(26,1fr);gap:3px;margin-top:8px;"></div>
+        <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">সহায়ক পরিমাপ — স্কোর শিল্পের চূড়ান্ত মান নয়।</div>
+      </div>
+    </section>
+
+    <!-- 8. PROGRESS DASHBOARD TAB -->
+    <section id="tab-progress" class="tab-panel">
+      <div class="card">
+        <div class="card-header"><div class="card-title">👤 আমার অ্যাকাউন্ট</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input id="accountName" placeholder="আপনার নাম" style="flex:1;min-width:140px;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card-subtle);color:var(--text-main);">
+          <button id="accountSaveBtn" class="btn-outline" type="button">সংরক্ষণ</button>
+        </div>
+        <div id="accountStatus" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">🔌 স্থানীয় মোড</div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">📈 অগ্রগতি ড্যাশবোর্ড</div>
+          <select id="progressRange" class="btn-outline" style="font-size:0.8rem;"><option value="7d">৭ দিন</option><option value="30d">৩০ দিন</option><option value="all" selected>সব</option></select>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val" id="dashWeekly">--</div><div class="stat-label">সাপ্তাহিক রেওয়াজ (মিনিট)</div></div>
+          <div class="stat-box"><div class="stat-val" id="dashMonthly">--</div><div class="stat-label">মাসিক রেওয়াজ (মিনিট)</div></div>
+          <div class="stat-box"><div class="stat-val" id="dashAcc">--</div><div class="stat-label">গড় নিখুঁত হার</div></div>
+          <div class="stat-box"><div class="stat-val" id="dashBest">--</div><div class="stat-label">সেরা সেশন</div></div>
+        </div>
+        <div id="dashSuggestion" style="margin-top:10px;font-size:0.9rem;color:var(--primary);"></div>
+        <div class="card-header" style="margin-top:12px;"><div class="card-title">🎼 স্বয়ংক্রিয় পল্টা জেনারেটর</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+          <select id="genNotes" class="btn-outline"><option value="4">৪ স্বর</option><option value="5">৫ স্বর</option><option value="7">৭ স্বর</option></select>
+          <select id="genMotion" class="btn-outline"><option value="saral">সরল</option><option value="bakra">বক্র</option><option value="lanka">লম্ফ</option><option value="punorabritti">পুনরাবৃত্তি</option></select>
+          <select id="genBpm" class="btn-outline"><option value="60">৬০ BPM</option><option value="80" selected>৮০ BPM</option><option value="100">১০০ BPM</option></select>
+          <button id="genBtn" class="btn-primary" type="button">✨ পল্টা বানান</button>
+        </div>
+        <div id="genOutput" style="font-size:1rem;font-weight:700;color:var(--text-main);"></div>
+      </div>
+    </section>
+
+    <!-- 9. THEORY CENTRE TAB -->
+    <section id="tab-theory" class="tab-panel">
+      <div class="card">
+        <div class="card-header"><div class="card-title">📚 সংগীততত্ত্ব শিক্ষা কেন্দ্র</div><span id="theoryVerifiedBadge" style="font-size:0.75rem;color:var(--text-muted);"></span></div>
+        <div id="theoryList" style="display:flex;flex-direction:column;gap:10px;"></div>
+      </div>
+    </section>
+
+    <!-- 10. EAR TRAINING TAB -->
+    <section id="tab-ear" class="tab-panel">
+      <div class="card">
+        <div class="card-header"><div class="card-title">🎧 কান সাধনা (Ear Training)</div>
+          <select id="earLevel" class="btn-outline" style="font-size:0.8rem;">
+            <option value="easy">সহজ (সা গা পা)</option>
+            <option value="medium">মধ্য (৫ স্বর)</option>
+            <option value="hard">কঠিন (৮ স্বর)</option>
+          </select>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">একটি স্বর বাজবে — কোন স্বর তা চিনুন। স্কোর সহায়ক পরিমাপ।</p>
+        <div style="display:flex;gap:8px;align-items:center;margin:10px 0;">
+          <button id="earPlayBtn" class="btn-primary" type="button">🔊 স্বর শুনুন</button>
+          <div>স্কোর: <strong id="earScore">0/0</strong></div>
+        </div>
+        <div id="earQuestion" style="font-weight:700;margin-bottom:8px;">শুরু করতে “স্বর শুনুন” চাপুন</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn-outline ear-answer" data-swara="সা">সা</button>
+          <button class="btn-outline ear-answer" data-swara="রে">রে</button>
+          <button class="btn-outline ear-answer" data-swara="গা">গা</button>
+          <button class="btn-outline ear-answer" data-swara="মা">মা</button>
+          <button class="btn-outline ear-answer" data-swara="পা">পা</button>
+          <button class="btn-outline ear-answer" data-swara="ধা">ধা</button>
+          <button class="btn-outline ear-answer" data-swara="নি">নি</button>
+          <button class="btn-outline ear-answer" data-swara="সাঁ">সাঁ</button>
         </div>
       </div>
     </section>
@@ -415,8 +528,21 @@
   </div>
 
   <!-- Audio and App Scripts -->
+  <script src="js/music/swara.js"></script>
+  <script src="js/music/pitch-filters.js"></script>
+  <script src="js/music/pitch-history.js"></script>
+  <script src="js/music/raga-engine.js"></script>
+  <script src="js/audio/tabla.js"></script>
+  <script src="js/audio/tanpura.js"></script>
+  <script src="js/practice/guided-practice.js"></script>
+  <script src="js/practice/vocal-range.js"></script>
+  <script src="js/practice/alankar-generator.js"></script>
+  <script src="js/practice/analytics.js"></script>
+  <script src="js/ui/auth.js"></script>
+  <script src="js/practice/ear-training.js"></script>
   <script src="audio-engine.js"></script>
   <script src="pitch-detector.js"></script>
   <script src="app.js"></script>
+  <script src="js/ui/progress.js"></script>
 </body>
 </html>

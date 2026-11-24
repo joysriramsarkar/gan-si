@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * ======================================================== */
   const loadUserStats = async () => {
     try {
-      const res = await fetch('/api/stats');
+      const res = await (window.GanSiAuth ? window.GanSiAuth.fetch('/api/stats') : fetch('/api/stats'));
       if (res.ok) {
         const stats = await res.json();
         if (streakCount) streakCount.textContent = stats.currentStreak || 1;
@@ -461,6 +461,62 @@ document.addEventListener('DOMContentLoaded', () => {
     window.audioEngine.tanpuraVolume = parseFloat(e.target.value);
   });
 
+  // P5-B: decay, auto-stop, per-string gains, sample layer (persisted locally)
+  try {
+    const savedTanpura = JSON.parse(localStorage.getItem('gan-si-tanpura') || '{}');
+    if (savedTanpura.decay) window.audioEngine.setTanpuraDecay(savedTanpura.decay);
+    if (savedTanpura.autoStop) window.audioEngine.setTanpuraAutoStop(savedTanpura.autoStop);
+    if (Array.isArray(savedTanpura.gains)) savedTanpura.gains.forEach((g, i) => window.audioEngine.setTanpuraStringGain(i, g));
+    if (savedTanpura.sampleUrl) window.audioEngine.loadTanpuraSample(savedTanpura.sampleUrl).catch(() => {});
+  } catch {}
+  const saveTanpura = () => {
+    try {
+      localStorage.setItem('gan-si-tanpura', JSON.stringify({
+        decay: window.audioEngine.tanpuraDecaySec,
+        autoStop: window.audioEngine.tanpuraAutoStopMin,
+        gains: window.audioEngine.tanpuraStringGains,
+        sampleUrl: window.audioEngine.tanpuraSampleUrl
+      }));
+    } catch {}
+  };
+  const decaySlider = document.getElementById('tanpuraDecaySlider');
+  if (decaySlider) {
+    decaySlider.value = window.audioEngine.tanpuraDecaySec;
+    decaySlider.addEventListener('input', (e) => {
+      window.audioEngine.setTanpuraDecay(parseFloat(e.target.value));
+      const v = document.getElementById('tanpuraDecayVal');
+      if (v) v.textContent = parseFloat(e.target.value).toFixed(1);
+      saveTanpura();
+    });
+  }
+  const autoStopSel = document.getElementById('tanpuraAutoStopSelect');
+  if (autoStopSel) {
+    autoStopSel.value = String(window.audioEngine.tanpuraAutoStopMin || 0);
+    autoStopSel.addEventListener('change', (e) => {
+      window.audioEngine.setTanpuraAutoStop(parseInt(e.target.value, 10));
+      saveTanpura();
+    });
+  }
+  document.querySelectorAll('.tanpura-string-gain').forEach(el => {
+    el.addEventListener('input', (e) => {
+      window.audioEngine.setTanpuraStringGain(parseInt(e.target.dataset.string, 10), parseFloat(e.target.value));
+      saveTanpura();
+    });
+  });
+  const sampleBtn = document.getElementById('tanpuraSampleBtn');
+  if (sampleBtn) {
+    sampleBtn.addEventListener('click', async () => {
+      const url = document.getElementById('tanpuraSampleUrl').value.trim();
+      try {
+        await window.audioEngine.loadTanpuraSample(url || null);
+        saveTanpura();
+        sampleBtn.textContent = url ? '✅ লোড হয়েছে' : 'সিন্থ মোড';
+      } catch {
+        sampleBtn.textContent = '❌ লোড হয়নি';
+      }
+    });
+  }
+
   /* ========================================================
    * 11. VIRTUAL HARMONIUM KEYBOARD & CONTINUOUS DRONE STOPS
    * ======================================================== */
@@ -640,7 +696,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentTargetIndex = 0;
   let isGuidedPracticeRunning = false;
   let practiceScore = 0;
-  let targetHoldCounter = 0;
+  let guidedHoldStart = null; // P2-2: time-based hold (300ms), fps-independent
+  const GUIDED_HOLD_MS = 300;
 
   const defaultAlankars = [
     {
@@ -721,7 +778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     startGuidedPracticeBtn.style.display = 'inline-flex';
     stopGuidedPracticeBtn.style.display = 'none';
 
-    fetch('/api/stats/session', {
+    (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -739,13 +796,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isGuidedPracticeRunning || currentTargetIndex >= guidedNotesQueue.length) return;
 
     const targetSwara = guidedNotesQueue[currentTargetIndex];
-    const normTarget = targetSwara.replace(/['ঁ♭♯]/g, '').trim();
-    const normSung = data.sargamShortName.replace(/['ঁ♭♯]/g, '').trim();
+    const norm = (s) => String(s || '').replace(/['ঁ♭♯]/g, '').trim();
+    const now = Date.now();
 
-    if (data.isInTune && normTarget === normSung) {
-      targetHoldCounter++;
-      if (targetHoldCounter >= 4) {
-        targetHoldCounter = 0;
+    if (data.isInTune && norm(targetSwara) === norm(data.sargamShortName)) {
+      if (guidedHoldStart == null) guidedHoldStart = now;
+      if (now - guidedHoldStart >= GUIDED_HOLD_MS) {
+        guidedHoldStart = null;
         const currentCard = document.getElementById(`guided-swara-${currentTargetIndex}`);
         if (currentCard) {
           currentCard.classList.remove('target-current');
@@ -754,6 +811,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         practiceScore += 10;
         if (practiceScoreEl) practiceScoreEl.textContent = practiceScore;
+        const hitRate = Math.round(((currentTargetIndex + 1) / guidedNotesQueue.length) * 100);
+        const hitEl = document.getElementById('practiceHitRate');
+        if (hitEl) hitEl.textContent = `${hitRate}%`;
 
         currentTargetIndex++;
         if (currentTargetIndex < guidedNotesQueue.length) {
@@ -763,11 +823,11 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
           if (currentTargetNoteEl) currentTargetNoteEl.textContent = "সম্পূর্ণ! 🎉";
           stopGuidedPractice();
-          alert(`অভিনন্দন! আপনি সফলভাবে অলংকারটি সম্পন্ন করেছেন!\nমোট স্কোর: ${practiceScore} পয়েন্ট`);
+          alert(`অভিনন্দন! আপনি সফলভাবে অলংকারটি সম্পন্ন করেছেন!\nমোট স্কোর: ${practiceScore} পয়েন্ট\n(সহায়ক পরিমাপ — শিল্পের চূড়ান্ত মান নয়)`);
         }
       }
     } else {
-      targetHoldCounter = Math.max(0, targetHoldCounter - 1);
+      guidedHoldStart = null;
     }
   };
 
@@ -1014,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Optional server upload if backend available
         const formData = new FormData();
         formData.append('audio', blob, `riyaz-${Date.now()}.webm`);
-        fetch('/api/recordings', { method: 'POST', body: formData }).catch(() => {});
+        (window.GanSiAuth ? window.GanSiAuth.fetch('/api/recordings', { method: 'POST', body: formData }) : fetch('/api/recordings', { method: 'POST', body: formData })).catch(() => {});
       }
     } else {
       let stream = pitchDetector.micStream;
@@ -1048,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sessionTimerEl) sessionTimerEl.textContent = `${m}:${s}`;
 
     if (secondsSpent % 60 === 0 && pitchDetector.isListening) {
-      fetch('/api/stats/session', {
+      (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ minutes: 1 })

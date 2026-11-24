@@ -23,6 +23,12 @@ class AudioEngine {
     this.tanpuraTuning = 0; // 0 = Pa, 1 = Ma, 2 = Ni, 3 = Shuddha Dha
     this.tanpuraTempoBpm = 40;
     this.tanpuraVolume = 0.7;
+    this.tanpuraStringGains = [1, 1, 1, 1]; // P5-B: per-string volume
+    this.tanpuraDecaySec = 4.2; // P5-B: pluck decay envelope
+    this.tanpuraAutoStopMin = 0; // 0 = off
+    this.tanpuraAutoStopTimer = null;
+    this.tanpuraSampleUrl = null; // optional real-tanpura sample; synth fallback
+    this.tanpuraSampleBuf = null;
     this.baseFreqA4 = 440;
     this.rootOffset = 10; // A#
     
@@ -159,11 +165,65 @@ class AudioEngine {
   /* ========================================================
    * 1. TANPURA SYNTHESIS
    * ======================================================== */
-  startTanpura(onStringPlucked) {
+  setTanpuraStringGain(i, v) {
+    this.tanpuraStringGains[i] = Math.max(0, Math.min(1.5, v));
+  }
+
+  setTanpuraDecay(sec) {
+    this.tanpuraDecaySec = Math.max(0.5, Math.min(10, sec));
+  }
+
+  setTanpuraAutoStop(min) {
+    this.tanpuraAutoStopMin = Math.max(0, Math.min(180, min || 0));
+    this.refreshTanpuraAutoStop();
+  }
+
+  refreshTanpuraAutoStop() {
+    if (this.tanpuraAutoStopTimer) {
+      clearTimeout(this.tanpuraAutoStopTimer);
+      this.tanpuraAutoStopTimer = null;
+    }
+    if (this.isTanpuraPlaying && this.tanpuraAutoStopMin > 0) {
+      this.tanpuraAutoStopTimer = setTimeout(() => this.stopTanpura(), this.tanpuraAutoStopMin * 60 * 1000);
+    }
+  }
+
+  // Optional real-tanpura sample layer (user-provided URL); synth fallback stays default.
+  async loadTanpuraSample(url) {
+    this.init();
+    this.tanpuraSampleUrl = url || null;
+    this.tanpuraSampleBuf = null;
+    if (!url) return null;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Sample fetch failed');
+    const ab = await res.arrayBuffer();
+    this.tanpuraSampleBuf = await this.ctx.decodeAudioData(ab);
+    return this.tanpuraSampleBuf;
+  }
+
+  playTanpuraSample(freq, time, stringIndex) {
+    const ctx = this.ctx;
+    const src = ctx.createBufferSource();
+    src.buffer = this.tanpuraSampleBuf;
+    src.playbackRate.setValueAtTime(freq / 110, time); // sample assumed near A2
+    const g = ctx.createGain();
+    const peak = 0.5 * this.tanpuraVolume * (this.tanpuraStringGains[stringIndex] || 1);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.linearRampToValueAtTime(peak, time + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + this.tanpuraDecaySec);
+    src.connect(g);
+    g.connect(this.masterGain);
+    src.start(time);
+    src.stop(time + this.tanpuraDecaySec + 0.3);
+  }
+
+  startTanpura(onStringPlucked, opts = {}) {
     this.init();
     if (this.isTanpuraPlaying) return;
+    if (opts.autoStopMin !== undefined) this.tanpuraAutoStopMin = opts.autoStopMin;
     this.isTanpuraPlaying = true;
     this.tanpuraCurrentString = 0;
+    this.refreshTanpuraAutoStop();
 
     const pluckIntervalMs = (60 / this.tanpuraTempoBpm) * 1000;
 
@@ -181,6 +241,10 @@ class AudioEngine {
     if (this.tanpuraTimer) {
       clearTimeout(this.tanpuraTimer);
       this.tanpuraTimer = null;
+    }
+    if (this.tanpuraAutoStopTimer) {
+      clearTimeout(this.tanpuraAutoStopTimer);
+      this.tanpuraAutoStopTimer = null;
     }
   }
 
@@ -221,11 +285,17 @@ class AudioEngine {
   }
 
   synthesizeTanpuraPluck(freq, time, stringIndex) {
+    // Sample layer wins when a real tanpura sample is loaded; otherwise synth Javari.
+    if (this.tanpuraSampleBuf) {
+      try { this.playTanpuraSample(freq, time, stringIndex); return; } catch {}
+    }
     const ctx = this.ctx;
     const stringGain = ctx.createGain();
+    const peak = 0.18 * this.tanpuraVolume * (this.tanpuraStringGains[stringIndex] ?? 1);
+    const decay = this.tanpuraDecaySec;
     stringGain.gain.setValueAtTime(0.0001, time);
-    stringGain.gain.linearRampToValueAtTime(0.18 * this.tanpuraVolume, time + 0.025);
-    stringGain.gain.exponentialRampToValueAtTime(0.0001, time + 4.2);
+    stringGain.gain.linearRampToValueAtTime(peak, time + 0.025);
+    stringGain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
 
     const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     if (panner) {
@@ -254,14 +324,14 @@ class AudioEngine {
       vibrato.connect(vibratoGain);
       vibratoGain.connect(osc.frequency);
       vibrato.start(time);
-      vibrato.stop(time + 4.5);
+      vibrato.stop(time + decay + 0.3);
 
       hGain.gain.setValueAtTime(amplitudes[i], time);
       osc.connect(hGain);
       hGain.connect(stringGain);
 
       osc.start(time);
-      osc.stop(time + 4.5);
+      osc.stop(time + decay + 0.3);
     });
   }
 

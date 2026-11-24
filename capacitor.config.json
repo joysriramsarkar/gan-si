@@ -1,0 +1,11 @@
+{
+  "appId": "com.gansi.sursadhana",
+  "appName": "Gan-si Sur Sadhana",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
