@@ -1,0 +1,15 @@
+{
+  "totalMinutes": 5,
+  "totalSessions": 1,
+  "currentStreak": 1,
+  "lastPracticedDate": "2026-11-24",
+  "history": [
+    {
+      "date": "2026-11-24T08:52:52.830Z",
+      "minutes": 5,
+      "accuracy": 92,
+      "raga": null,
+      "alankar": null
+    }
+  ]
+}

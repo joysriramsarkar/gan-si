@@ -10,7 +10,9 @@
     "aroha": "নি্ রে গা, মা♯ ধা নি সাঁ",
     "avoroha": "সাঁ নি ধা পা, মা♯ গা রে সা",
     "pakad": "নি্ রে গা রে, মা♯ ধা নি সাঁ",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Teevra Ma", "Pa", "Shuddha Dha", "Shuddha Ni"]
+    "varjya": "কোনো স্বর বর্জিত নয় (কড়ি মা যুক্ত)",
+    "allowedIntervals": [0, 2, 4, 6, 7, 9, 11],
+    "firstString": 0
   },
   {
     "id": "bilawal",
@@ -23,7 +25,9 @@
     "aroha": "সা রে গা মা পা ধা নি সাঁ",
     "avoroha": "সাঁ নি ধা পা মা গা রে সা",
     "pakad": "গা রে, গা পা, ধা নি সাঁ",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Shuddha Ma", "Pa", "Shuddha Dha", "Shuddha Ni"]
+    "varjya": "সব শুদ্ধ স্বর",
+    "allowedIntervals": [0, 2, 4, 5, 7, 9, 11],
+    "firstString": 0
   },
   {
     "id": "bhairav",
@@ -36,7 +40,9 @@
     "aroha": "সা রে♭ গা মা পা ধা♭ নি সাঁ",
     "avoroha": "সাঁ নি ধা♭ পা মা গা রে♭ সা",
     "pakad": "গা মা ধা♭ ধা♭ পা, মা গা রে♭ রে♭ সা",
-    "swaras": ["Sa", "Komal Re", "Shuddha Ga", "Shuddha Ma", "Pa", "Komal Dha", "Shuddha Ni"]
+    "varjya": "কোমল রে ও কোমল ধা যুক্ত",
+    "allowedIntervals": [0, 1, 4, 5, 7, 8, 11],
+    "firstString": 0
   },
   {
     "id": "bhairavi",
@@ -49,7 +55,9 @@
     "aroha": "সা রে♭ গা♭ মা পা ধা♭ নি♭ সাঁ",
     "avoroha": "সাঁ নি♭ ধা♭ পা মা গা♭ রে♭ সা",
     "pakad": "মা পা ধা♭ পা, মা গা♭ রে♭ সা",
-    "swaras": ["Sa", "Komal Re", "Komal Ga", "Shuddha Ma", "Pa", "Komal Dha", "Komal Ni"]
+    "varjya": "চারটি কোমল স্বর (রে, গা, ধা, নি)",
+    "allowedIntervals": [0, 1, 3, 5, 7, 8, 10],
+    "firstString": 1
   },
   {
     "id": "kafi",
@@ -62,71 +70,83 @@
     "aroha": "সা রে গা♭ মা পা ধা নি♭ সাঁ",
     "avoroha": "সাঁ নি♭ ধা পা মা গা♭ রে সা",
     "pakad": "সা রে রে গা♭ গা♭ মা মা পা",
-    "swaras": ["Sa", "Shuddha Re", "Komal Ga", "Shuddha Ma", "Pa", "Shuddha Dha", "Komal Ni"]
+    "varjya": "কোমল গা ও কোমল নি যুক্ত",
+    "allowedIntervals": [0, 2, 3, 5, 7, 9, 10],
+    "firstString": 0
   },
   {
     "id": "bhoopali",
     "name": "রাগ ভূপালী (Bhoopali)",
     "thaat": "কল্যাণ (ঔড়ব জাতি)",
-    "jati": "ঔড়ব - ঔড়ব (মা ও নি বর্জিত)",
+    "jati": "ঔড়ব - ঔড়ব",
     "vadi": "গা (Gandhar)",
     "samvadi": "ধা (Dhaivat)",
     "time": "সন্ধ্যা কাল",
     "aroha": "সা রে গা পা ধা সাঁ",
     "avoroha": "সাঁ ধা পা গা রে সা",
     "pakad": "গা রে সা, ধা্ সা রে গা",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Pa", "Shuddha Dha"]
+    "varjya": "মা ও নি সম্পূর্ণ বর্জিত",
+    "allowedIntervals": [0, 2, 4, 7, 9],
+    "firstString": 0
+  },
+  {
+    "id": "malkauns",
+    "name": "রাগ মালকোষ (Malkauns)",
+    "thaat": "ভৈরবী",
+    "jati": "ঔড়ব - ঔড়ব",
+    "vadi": "মা (Madhyam)",
+    "samvadi": "সা (Shadja)",
+    "time": "গভীর রাত্রি",
+    "aroha": "সা গা♭ মা ধা♭ নি♭ সাঁ",
+    "avoroha": "সাঁ নি♭ ধা♭ মা গা♭ সা",
+    "pakad": "ধা♭ নি♭ সা, মা, গা♭ মা গা♭ সা",
+    "varjya": "রে ও পা সম্পূর্ণ বর্জিত",
+    "allowedIntervals": [0, 3, 5, 8, 10],
+    "firstString": 1
   },
   {
     "id": "asavari",
     "name": "রাগ আশাবরী (Asavari)",
     "thaat": "আশাবরী",
-    "jati": "ঔড়ব - সম্পূর্ণ (আরোহে গা ও নি বর্জিত)",
+    "jati": "ঔড়ব - সম্পূর্ণ",
     "vadi": "ধা♭ (Komal Dha)",
     "samvadi": "গা♭ (Komal Ga)",
     "time": "দিনের দ্বিতীয় প্রহর",
     "aroha": "সা রে মা পা ধা♭ সাঁ",
     "avoroha": "সাঁ নি♭ ধা♭ পা মা গা♭ রে সা",
     "pakad": "মা পা ধা♭ পা, মা গা♭ রে সা",
-    "swaras": ["Sa", "Shuddha Re", "Komal Ga", "Shuddha Ma", "Pa", "Komal Dha", "Komal Ni"]
+    "varjya": "আরোহে গা ও নি বর্জিত",
+    "allowedIntervals": [0, 2, 3, 5, 7, 8, 10],
+    "firstString": 0
   },
   {
     "id": "khamaj",
     "name": "রাগ খাম্বাজ (Khamaj)",
     "thaat": "খাম্বাজ",
-    "jati": "ষাড়ব - সম্পূর্ণ (আরোহে রে বর্জিত)",
+    "jati": "ষাড়ব - সম্পূর্ণ",
     "vadi": "গা (Gandhar)",
     "samvadi": "নি (Nishad)",
     "time": "রাত্রির দ্বিতীয় প্রহর",
     "aroha": "সা গা মা পা ধা নি সাঁ",
     "avoroha": "সাঁ নি♭ ধা পা মা গা রে সা",
     "pakad": "নি ধা, মা পা ধা, মা গা",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Shuddha Ma", "Pa", "Shuddha Dha", "Komal Ni", "Shuddha Ni"]
+    "varjya": "আরোহে রে বর্জিত (অবরোহে কোমল নি)",
+    "allowedIntervals": [0, 2, 4, 5, 7, 9, 10, 11],
+    "firstString": 0
   },
   {
-    "id": "jaitri",
-    "name": "রাগ জৈত্রি (Jaitri)",
-    "thaat": "জৈত্রী",
-    "jati": "সম্পূর্ণ",
-    "vadi": "পা (Pancham)",
+    "id": "marwa",
+    "name": "রাগ মারবা (Marwa)",
+    "thaat": "মারবা",
+    "jati": "ষাড়ব - ষাড়ব",
+    "vadi": "রে♭ (Komal Re)",
     "samvadi": "ধা (Dhaivat)",
-    "time": "দুপুরের প্রহর",
-    "aroha": "সা রে গা মা পা ধা নি সাঁ",
-    "avoroha": "সাঁ নি ধা পা মা গা রে সা",
-    "pakad": "সা রে গা মা পা ধা নি সাঁ",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Shuddha Ma", "Pa", "Shuddha Dha", "Shuddha Ni"]
-  },
-  {
-    "id": "sri",
-    "name": "রাগ শ্রী (Sri)",
-    "thaat": "বিলাবল",
-    "jati": "সম্পূর্ণ",
-    "vadi": "মা (Madhyam)",
-    "samvadi": "সা (Shadja)",
-    "time": "সন্ধ্যা কাল",
-    "aroha": "সা রে গা মা পা ধা নি সাঁ",
-    "avoroha": "সাঁ নি ধা পা মা গা রে সা",
-    "pakad": "নি ধা পা, মা গা রে",
-    "swaras": ["Sa", "Shuddha Re", "Shuddha Ga", "Shuddha Ma", "Pa", "Shuddha Dha", "Shuddha Ni"]
+    "time": "সূর্যাস্ত কাল (সন্ধিপ্রকাশ)",
+    "aroha": "নি্ রে♭ গা মা♯ ধা নি সাঁ",
+    "avoroha": "সাঁ নি ধা মা♯ গা রে♭ সা",
+    "pakad": "ধা মা♯ গা রে♭, গা মা♯ ধা",
+    "varjya": "পা সম্পূর্ণ বর্জিত (কোমল রে, কড়ি মা)",
+    "allowedIntervals": [0, 1, 4, 6, 9, 11],
+    "firstString": 2
   }
 ]

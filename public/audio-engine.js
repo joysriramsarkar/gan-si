@@ -1,10 +1,14 @@
 /**
  * Audio Engine for Sur Sadhana Pro
  * Features:
- * - Realistic Tanpura Plucked Synthesis with Javari buzz harmonics
- * - Harmonium Dual-Reed Sound Synthesis
- * - Indian Tabla Synthesizer (Bayan & Dayan) + Metronome
- * - Mixed Audio Recording (Mic + Instruments)
+ * - Two-Clocks Web Audio Lookahead Scheduler Pattern for Precision Tabla & Metronome
+ * - 8 Indian Classical Taals (Teental, Keherwa, Dadra, Rupak, Jhaptal, Ektaal, Tewra, Deepchandi)
+ * - Laya Multipliers (একগুণ 1x, দ্বিগুণ 2x, চৌগুণ 4x)
+ * - Synthetic Acoustic Tanpura with Javari Overtone Plucking
+ * - Virtual Harmonium Dual-Reed Synthesis with Continuous Drone Stops
+ * - Swaramandal Cascading Glissando Strum
+ * - Algorithmic Convolver Studio Reverb
+ * - iOS Safari User Interaction Auto-Resume
  */
 
 class AudioEngine {
@@ -17,44 +21,61 @@ class AudioEngine {
     
     // Tanpura Settings
     this.tanpuraTuning = 0; // 0 = Pa, 1 = Ma, 2 = Ni, 3 = Shuddha Dha
-    this.tanpuraTempoBpm = 40; // Pluck interval
+    this.tanpuraTempoBpm = 40;
     this.tanpuraVolume = 0.7;
-    this.baseFreqA4 = 440; // Standard pitch
-    this.rootOffset = 10; // A# (কালো ৫) default
+    this.baseFreqA4 = 440;
+    this.rootOffset = 10; // A#
     
-    // Harmonium Active Voices
+    // Harmonium Active Voices & Drone Stops
     this.activeHarmoniumVoices = new Map();
+    this.activeHarmoniumDrones = new Set();
 
-    // Tabla & Rhythm
+    // Studio Reverb
+    this.convolver = null;
+    this.reverbGain = null;
+    this.dryGain = null;
+    this.isReverbEnabled = true;
+    this.reverbLevel = 0.35;
+
+    // Two-Clocks Lookahead Tabla Scheduler
     this.isMetronomePlaying = false;
-    this.metronomeTimer = null;
     this.currentTaal = 'teental';
     this.taalBpm = 110;
+    this.layaMultiplier = 1; // 1 = Ekgun, 2 = Dwigun, 4 = Chougun
     this.currentMatra = 0;
     this.onBeatCallback = null;
+    
+    this.lookaheadMs = 25.0; // Interval for scheduler timer
+    this.scheduleAheadTime = 0.1; // 100ms lookahead audio buffer
+    this.nextBeatTime = 0.0;
+    this.schedulerTimerId = null;
 
-    // Recorder
+    // Mixed Audio Recorder
     this.mediaRecorder = null;
     this.recordedChunks = [];
     this.recordDest = null;
     this.isRecording = false;
 
-    // Swara Sequence Player (Raga preview / Alankar practice)
+    // Swara sequence player
     this.swaraSeqPlaying = false;
     this.swaraSeqTimer = null;
     this.swaraSeqIntervals = [];
     this.swaraSeqIndex = 0;
+
+    // Attach iOS Safari touch listener
+    this.attachSafariUnlock();
   }
 
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AudioCtx();
+      
       this.masterGain = this.ctx.createGain();
       this.masterGain.gain.setValueAtTime(0.9, this.ctx.currentTime);
-      this.masterGain.connect(this.ctx.destination);
 
-      // Create recording mixing bus
+      this.setupReverb();
+
       this.recordDest = this.ctx.createMediaStreamDestination();
       this.masterGain.connect(this.recordDest);
     }
@@ -63,14 +84,80 @@ class AudioEngine {
     }
   }
 
-  // Frequency calculation from note index (0 = C, 1 = C#... 11 = B)
+  attachSafariUnlock() {
+    if (typeof window === 'undefined') return;
+    const unlock = () => {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume();
+      }
+      window.removeEventListener('touchstart', unlock, true);
+      window.removeEventListener('touchend', unlock, true);
+      window.removeEventListener('click', unlock, true);
+    };
+    window.addEventListener('touchstart', unlock, true);
+    window.addEventListener('touchend', unlock, true);
+    window.addEventListener('click', unlock, true);
+  }
+
+  setupReverb() {
+    try {
+      const ctx = this.ctx;
+      this.convolver = ctx.createConvolver();
+      this.reverbGain = ctx.createGain();
+      this.dryGain = ctx.createGain();
+
+      const rate = ctx.sampleRate;
+      const length = rate * 2.5;
+      const decay = 2.0;
+      const impulse = ctx.createBuffer(2, length, rate);
+      const left = impulse.getChannelData(0);
+      const right = impulse.getChannelData(1);
+
+      for (let i = 0; i < length; i++) {
+        const n = i / length;
+        const e = Math.exp(-n * decay * 3.5);
+        left[i] = (Math.random() * 2 - 1) * e;
+        right[i] = (Math.random() * 2 - 1) * e;
+      }
+
+      this.convolver.buffer = impulse;
+
+      this.reverbGain.gain.setValueAtTime(this.isReverbEnabled ? this.reverbLevel : 0, ctx.currentTime);
+      this.dryGain.gain.setValueAtTime(1.0, ctx.currentTime);
+
+      this.masterGain.connect(this.dryGain);
+      this.masterGain.connect(this.convolver);
+      this.convolver.connect(this.reverbGain);
+
+      this.dryGain.connect(ctx.destination);
+      this.reverbGain.connect(ctx.destination);
+    } catch (e) {
+      console.warn("Reverb fallback to dry output", e);
+      this.masterGain.connect(this.ctx.destination);
+    }
+  }
+
+  setReverbEnabled(enabled) {
+    this.isReverbEnabled = enabled;
+    if (this.reverbGain && this.ctx) {
+      this.reverbGain.gain.setValueAtTime(enabled ? this.reverbLevel : 0, this.ctx.currentTime);
+    }
+  }
+
+  setReverbLevel(level) {
+    this.reverbLevel = Math.max(0, Math.min(1, level));
+    if (this.isReverbEnabled && this.reverbGain && this.ctx) {
+      this.reverbGain.gain.setValueAtTime(this.reverbLevel, this.ctx.currentTime);
+    }
+  }
+
   getNoteFrequency(noteIndex, octave = 4) {
     const midi = (octave + 1) * 12 + noteIndex;
     return this.baseFreqA4 * Math.pow(2, (midi - 69) / 12);
   }
 
   /* ========================================================
-   * 1. AUTHENTIC ACOUSTIC TANPURA SYNTHESIS (JAVARI EFFECT)
+   * 1. TANPURA SYNTHESIS
    * ======================================================== */
   startTanpura(onStringPlucked) {
     this.init();
@@ -102,40 +189,25 @@ class AudioEngine {
     const now = this.ctx.currentTime;
     const root = this.rootOffset;
 
-    // 4 strings:
-    // String 0: First string (Pa, Ma, or Ni depending on raga/scale)
-    // String 1: Middle Sa
-    // String 2: Middle Sa
-    // String 3: Kharaj Sa (Lower octave)
     let freq = 0;
     const stringIdx = this.tanpuraCurrentString;
-
-    // Male octave typically lower (octave 2-3), female (octave 3-4)
     const baseOctave = root < 5 ? 3 : 2;
 
     if (stringIdx === 0) {
-      // 1st string tuning
       if (this.tanpuraTuning === 0) {
-        // Pa (5th)
         freq = this.getNoteFrequency((root + 7) % 12, baseOctave);
       } else if (this.tanpuraTuning === 1) {
-        // Shuddha Ma (4th)
         freq = this.getNoteFrequency((root + 5) % 12, baseOctave);
       } else if (this.tanpuraTuning === 2) {
-        // Shuddha Ni (7th)
         freq = this.getNoteFrequency((root + 11) % 12, baseOctave - 1);
       } else {
-        // Shuddha Dha (6th)
         freq = this.getNoteFrequency((root + 9) % 12, baseOctave);
       }
     } else if (stringIdx === 1 || stringIdx === 2) {
-      // Middle Sa (Sa jodi)
-      // Subtle micro-detuning (cents) between the twin Sa strings creates natural acoustic shimmering!
-      const detune = stringIdx === 1 ? -1.5 : 1.5;
+      const detune = stringIdx === 1 ? -1.8 : 1.8;
       const baseSa = this.getNoteFrequency(root, baseOctave);
       freq = baseSa * Math.pow(2, detune / 1200);
     } else {
-      // Kharaj Sa (lower octave)
       freq = this.getNoteFrequency(root, baseOctave - 1);
     }
 
@@ -152,15 +224,12 @@ class AudioEngine {
     const ctx = this.ctx;
     const stringGain = ctx.createGain();
     stringGain.gain.setValueAtTime(0.0001, time);
-    // Pluck attack
     stringGain.gain.linearRampToValueAtTime(0.18 * this.tanpuraVolume, time + 0.025);
-    // Long resonant sustain decay
-    stringGain.gain.exponentialRampToValueAtTime(0.0001, time + 3.8);
+    stringGain.gain.exponentialRampToValueAtTime(0.0001, time + 4.2);
 
-    // Stereo Panning for immersive sound
     const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     if (panner) {
-      const panPositions = [-0.3, -0.1, 0.1, 0.35];
+      const panPositions = [-0.35, -0.12, 0.12, 0.35];
       panner.pan.setValueAtTime(panPositions[stringIndex] || 0, time);
       stringGain.connect(panner);
       panner.connect(this.masterGain);
@@ -168,9 +237,8 @@ class AudioEngine {
       stringGain.connect(this.masterGain);
     }
 
-    // Additive synthesis with Javari (buzzing overtones characteristic of Indian bridge)
     const harmonics = [1, 2, 3, 4, 5, 6, 7];
-    const amplitudes = [0.9, 0.65, 0.5, 0.35, 0.25, 0.18, 0.12];
+    const amplitudes = [0.95, 0.7, 0.52, 0.38, 0.28, 0.18, 0.12];
 
     harmonics.forEach((h, i) => {
       const osc = ctx.createOscillator();
@@ -179,27 +247,68 @@ class AudioEngine {
       osc.type = i % 2 === 0 ? 'sawtooth' : 'triangle';
       osc.frequency.setValueAtTime(freq * h, time);
 
-      // Subtle frequency wobble for string vibration
       const vibrato = ctx.createOscillator();
       const vibratoGain = ctx.createGain();
-      vibrato.frequency.setValueAtTime(4.5 + i * 0.3, time);
+      vibrato.frequency.setValueAtTime(4.2 + i * 0.35, time);
       vibratoGain.gain.setValueAtTime(0.6 * h, time);
       vibrato.connect(vibratoGain);
       vibratoGain.connect(osc.frequency);
       vibrato.start(time);
-      vibrato.stop(time + 4.0);
+      vibrato.stop(time + 4.5);
 
       hGain.gain.setValueAtTime(amplitudes[i], time);
       osc.connect(hGain);
       hGain.connect(stringGain);
 
       osc.start(time);
-      osc.stop(time + 4.0);
+      osc.stop(time + 4.5);
     });
   }
 
   /* ========================================================
-   * 2. VIRTUAL HARMONIUM SOUND SYNTHESIS
+   * 2. SWARAMANDAL HARP GLISSANDO
+   * ======================================================== */
+  strumSwaramandal(scaleRoot = 10, intervals = [0, 2, 4, 5, 7, 9, 11]) {
+    this.init();
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const root = scaleRoot !== undefined ? scaleRoot : this.rootOffset;
+
+    const notes = [];
+    intervals.forEach(i => notes.push({ interval: i, octave: 3 }));
+    intervals.forEach(i => notes.push({ interval: i, octave: 4 }));
+    notes.push({ interval: 0, octave: 5 });
+
+    notes.forEach((item, index) => {
+      const noteIdx = (root + item.interval) % 12;
+      const freq = this.getNoteFrequency(noteIdx, item.octave);
+      const pluckTime = now + index * 0.065;
+
+      const stringGain = ctx.createGain();
+      stringGain.gain.setValueAtTime(0.0001, pluckTime);
+      stringGain.gain.linearRampToValueAtTime(0.12, pluckTime + 0.015);
+      stringGain.gain.exponentialRampToValueAtTime(0.0001, pluckTime + 2.8);
+
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, pluckTime);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(freq * 1.5, pluckTime);
+      filter.Q.setValueAtTime(4.0, pluckTime);
+
+      osc.connect(filter);
+      filter.connect(stringGain);
+      stringGain.connect(this.masterGain);
+
+      osc.start(pluckTime);
+      osc.stop(pluckTime + 3.0);
+    });
+  }
+
+  /* ========================================================
+   * 3. HARMONIUM SYNTHESIS & CONTINUOUS DRONES
    * ======================================================== */
   playHarmoniumNote(freq, noteKey) {
     this.init();
@@ -210,25 +319,23 @@ class AudioEngine {
 
     const voiceGain = ctx.createGain();
     voiceGain.gain.setValueAtTime(0.001, now);
-    voiceGain.gain.linearRampToValueAtTime(0.25, now + 0.04); // quick harmonium attack
+    voiceGain.gain.linearRampToValueAtTime(0.24, now + 0.04);
 
-    // Filter to emulate wooden harmonium body
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2400, now);
+    filter.frequency.setValueAtTime(2600, now);
 
-    // Dual reeds: Male reed + Female reed (octave + slight detune)
     const osc1 = ctx.createOscillator();
     osc1.type = 'sawtooth';
     osc1.frequency.setValueAtTime(freq, now);
 
     const osc2 = ctx.createOscillator();
     osc2.type = 'square';
-    osc2.frequency.setValueAtTime(freq * 1.002, now); // slight chorus detune
+    osc2.frequency.setValueAtTime(freq * 1.0025, now);
 
     const osc3 = ctx.createOscillator();
     osc3.type = 'sawtooth';
-    osc3.frequency.setValueAtTime(freq * 2.003, now); // upper octave reed
+    osc3.frequency.setValueAtTime(freq * 2.003, now);
 
     const oscGain3 = ctx.createGain();
     oscGain3.gain.setValueAtTime(0.35, now);
@@ -256,62 +363,69 @@ class AudioEngine {
     const voice = this.activeHarmoniumVoices.get(noteKey);
     const now = this.ctx.currentTime;
 
-    // Release envelope
     voice.gain.gain.cancelScheduledValues(now);
     voice.gain.gain.setValueAtTime(voice.gain.gain.value, now);
-    voice.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+    voice.gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
 
     setTimeout(() => {
       voice.oscillators.forEach(osc => {
         try { osc.stop(); osc.disconnect(); } catch (e) {}
       });
       voice.gain.disconnect();
-    }, 120);
+    }, 140);
 
     this.activeHarmoniumVoices.delete(noteKey);
   }
 
+  toggleHarmoniumDrone(freq, droneId) {
+    if (this.activeHarmoniumDrones.has(droneId)) {
+      this.stopHarmoniumNote(droneId);
+      this.activeHarmoniumDrones.delete(droneId);
+      return false;
+    } else {
+      this.playHarmoniumNote(freq, droneId);
+      this.activeHarmoniumDrones.add(droneId);
+      return true;
+    }
+  }
+
   /* ========================================================
-   * 3. TABLA & METRONOME SYNTHESIS
+   * 4. TWO-CLOCKS LOOKAHEAD TABLA SCHEDULER (PRECISION WEB AUDIO)
    * ======================================================== */
-  playTablaBol(type) {
-    this.init();
+  playScheduledTablaBol(type, time) {
     const ctx = this.ctx;
-    const now = ctx.currentTime;
 
     if (type === 'dha' || type === 'ge' || type === 'dhin') {
-      // Bayan (bass dagga pitch-bend modulation)
       const bayanOsc = ctx.createOscillator();
       const bayanGain = ctx.createGain();
       bayanOsc.type = 'sine';
-      bayanOsc.frequency.setValueAtTime(130, now);
-      bayanOsc.frequency.exponentialRampToValueAtTime(75, now + 0.18); // slide
+      bayanOsc.frequency.setValueAtTime(135, time);
+      bayanOsc.frequency.exponentialRampToValueAtTime(70, time + 0.2);
 
-      bayanGain.gain.setValueAtTime(0.5, now);
-      bayanGain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      bayanGain.gain.setValueAtTime(0.55, time);
+      bayanGain.gain.exponentialRampToValueAtTime(0.001, time + 0.3);
 
       bayanOsc.connect(bayanGain);
       bayanGain.connect(this.masterGain);
-      bayanOsc.start(now);
-      bayanOsc.stop(now + 0.3);
+      bayanOsc.start(time);
+      bayanOsc.stop(time + 0.32);
     }
 
     if (type === 'dha' || type === 'na' || type === 'tin' || type === 'ta' || type === 'dhin') {
-      // Dayan (resonant high metallic ping)
       const dayanOsc = ctx.createOscillator();
       const dayanGain = ctx.createGain();
       dayanOsc.type = 'triangle';
       
-      const pitch = type === 'tin' || type === 'ta' ? 420 : 360;
-      dayanOsc.frequency.setValueAtTime(pitch, now);
+      const pitch = (type === 'tin' || type === 'ta') ? 430 : 365;
+      dayanOsc.frequency.setValueAtTime(pitch, time);
 
-      dayanGain.gain.setValueAtTime(0.4, now);
-      dayanGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      dayanGain.gain.setValueAtTime(0.42, time);
+      dayanGain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
 
       dayanOsc.connect(dayanGain);
       dayanGain.connect(this.masterGain);
-      dayanOsc.start(now);
-      dayanOsc.stop(now + 0.25);
+      dayanOsc.start(time);
+      dayanOsc.stop(time + 0.25);
     }
   }
 
@@ -322,41 +436,68 @@ class AudioEngine {
     this.currentMatra = 0;
     this.onBeatCallback = onBeat;
 
-    const tick = () => {
-      if (!this.isMetronomePlaying) return;
+    // Initialize schedule time
+    this.nextBeatTime = this.ctx.currentTime + 0.05;
 
-      const taalData = this.getTaalData(this.currentTaal);
-      const bol = taalData.bols[this.currentMatra % taalData.bols.length];
-      const isSam = this.currentMatra === 0;
+    // Two-Clocks Scheduler Loop (Chris Wilson pattern)
+    const scheduler = () => {
+      while (this.nextBeatTime < this.ctx.currentTime + this.scheduleAheadTime) {
+        this.scheduleBeat(this.currentMatra, this.nextBeatTime);
+        this.advanceBeat();
+      }
+      if (this.isMetronomePlaying) {
+        this.schedulerTimerId = setTimeout(scheduler, this.lookaheadMs);
+      }
+    };
 
-      this.playTablaBol(bol.type);
+    scheduler();
+  }
 
-      if (this.onBeatCallback) {
+  scheduleBeat(matraIdx, time) {
+    const taalData = this.getTaalData(this.currentTaal);
+    const bol = taalData.bols[matraIdx % taalData.bols.length];
+    const isSam = matraIdx === 0;
+
+    // Schedule audio sound in Web Audio queue
+    this.playScheduledTablaBol(bol.type, time);
+
+    // Schedule UI callback synchronized with audio time
+    const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
+    setTimeout(() => {
+      if (this.isMetronomePlaying && this.onBeatCallback) {
         this.onBeatCallback({
-          matra: this.currentMatra + 1,
+          matra: matraIdx + 1,
           totalMatras: taalData.bols.length,
           bolName: bol.name,
           isSam: isSam,
           division: bol.division
         });
       }
+    }, delayMs);
+  }
 
-      this.currentMatra = (this.currentMatra + 1) % taalData.bols.length;
-
-      const intervalMs = (60 / this.taalBpm) * 1000;
-      this.metronomeTimer = setTimeout(tick, intervalMs);
-    };
-
-    tick();
+  advanceBeat() {
+    const taalData = this.getTaalData(this.currentTaal);
+    // Effective BPM adjusted by Laya Multiplier (1x, 2x, 4x)
+    const effectiveBpm = this.taalBpm * this.layaMultiplier;
+    const secondsPerBeat = 60.0 / effectiveBpm;
+    this.nextBeatTime += secondsPerBeat;
+    this.currentMatra = (this.currentMatra + 1) % taalData.bols.length;
   }
 
   stopMetronome() {
     this.isMetronomePlaying = false;
-    if (this.metronomeTimer) {
-      clearTimeout(this.metronomeTimer);
-      this.metronomeTimer = null;
+    if (this.schedulerTimerId) {
+      clearTimeout(this.schedulerTimerId);
+      this.schedulerTimerId = null;
     }
     this.currentMatra = 0;
+  }
+
+  setLayaMultiplier(mult) {
+    if ([1, 2, 4].includes(mult)) {
+      this.layaMultiplier = mult;
+    }
   }
 
   getTaalData(taalKey) {
@@ -417,19 +558,81 @@ class AudioEngine {
           { name: "ধী", type: "dhin", division: "tali" },
           { name: "না", type: "na", division: "tali" }
         ]
+      },
+      jhaptal: {
+        name: "ঝাঁপতাল (Jhaptal - ১০ মাত্রা)",
+        bols: [
+          { name: "ধী", type: "dhin", division: "sam" },
+          { name: "না", type: "na", division: "tali" },
+          { name: "ধী", type: "dhin", division: "tali" },
+          { name: "ধী", type: "dhin", division: "tali" },
+          { name: "না", type: "na", division: "tali" },
+          { name: "তী", type: "tin", division: "khali" },
+          { name: "না", type: "na", division: "khali" },
+          { name: "ধী", type: "dhin", division: "tali" },
+          { name: "ধী", type: "dhin", division: "tali" },
+          { name: "না", type: "na", division: "tali" }
+        ]
+      },
+      ektaal: {
+        name: "একতাল (Ektaal - ১২ মাত্রা)",
+        bols: [
+          { name: "ধিন", type: "dhin", division: "sam" },
+          { name: "ধিন", type: "dhin", division: "tali" },
+          { name: "ধাগে", type: "ge", division: "khali" },
+          { name: "তিরিকিট", type: "ta", division: "khali" },
+          { name: "তু", type: "tin", division: "tali" },
+          { name: "না", type: "na", division: "tali" },
+          { name: "কত", type: "ta", division: "khali" },
+          { name: "তা", type: "ta", division: "khali" },
+          { name: "ধাগে", type: "ge", division: "tali" },
+          { name: "তিরিকিট", type: "ta", division: "tali" },
+          { name: "ধিন", type: "dhin", division: "tali" },
+          { name: "না", type: "na", division: "tali" }
+        ]
+      },
+      tewra: {
+        name: "তেওড়া (Tewra - ৭ মাত্রা)",
+        bols: [
+          { name: "ধা", type: "dha", division: "sam" },
+          { name: "দিন", type: "dhin", division: "tali" },
+          { name: "তা", type: "ta", division: "tali" },
+          { name: "তিট", type: "tin", division: "tali" },
+          { name: "কত", type: "ta", division: "tali" },
+          { name: "গদি", type: "ge", division: "tali" },
+          { name: "গন", type: "na", division: "tali" }
+        ]
+      },
+      deepchandi: {
+        name: "দীপচন্দী (Deepchandi - ১৪ মাত্রা)",
+        bols: [
+          { name: "ধা", type: "dha", division: "sam" },
+          { name: "ধিন", type: "dhin", division: "tali" },
+          { name: "—", type: "na", division: "tali" },
+          { name: "ধা", type: "dha", division: "tali" },
+          { name: "ধা", type: "dha", division: "tali" },
+          { name: "তিন", type: "tin", division: "tali" },
+          { name: "—", type: "tin", division: "tali" },
+          { name: "তা", type: "ta", division: "khali" },
+          { name: "তিন", type: "tin", division: "khali" },
+          { name: "—", type: "tin", division: "khali" },
+          { name: "ধা", type: "dha", division: "tali" },
+          { name: "ধা", type: "dha", division: "tali" },
+          { name: "ধিন", type: "dhin", division: "tali" },
+          { name: "—", type: "dhin", division: "tali" }
+        ]
       }
     };
     return taals[taalKey] || taals.teental;
   }
 
   /* ========================================================
-   * 4. RECORDING AUDIO (MIC + TANPURA/INSTRUMENTS MIXED)
+   * 5. RECORDING AUDIO (MIC + INSTRUMENTS MIXED)
    * ======================================================== */
   async startRecording(micStream) {
     this.init();
     this.recordedChunks = [];
 
-    // Connect mic stream to our recorder mixing bus
     if (micStream) {
       const micSource = this.ctx.createMediaStreamSource(micStream);
       micSource.connect(this.recordDest);
@@ -470,62 +673,43 @@ class AudioEngine {
   }
 
   /* ========================================================
-   * 5. SWARA SEQUENCE PLAYER (Raga Preview / Alankar Practice)
+   * 6. SWARA SEQUENCE PLAYER (Raga Aroha/Avoroha Preview)
    * ======================================================== */
-  swaraToInterval(name) {
-    if (typeof name !== 'string') return null;
-    const norm = name.trim().toLowerCase().replace(/\s+/g, ' ');
-    const map = {
-      // English swaras (used in data/ragas.json)
-      'sa': 0, 'shadja': 0,
-      're': 2, 'shuddha re': 2, 'shuddha ri': 2, 'komal re': 1, 'chhota re': 1,
-      'ga': 4, 'shuddha ga': 4, 'komal ga': 3,
-      'ma': 5, 'shuddha ma': 5, 'teevra ma': 6, 'tivra ma': 6,
-      'pa': 7,
-      'dha': 9, 'shuddha dha': 9, 'komal dha': 8,
-      'ni': 11, 'shuddha ni': 11, 'komal ni': 10,
-      // Bengali sargam names (used in Alankars practice)
-      'সা': 0, 'সাঁ': 0,
-      'রে': 2, 'রেঁ': 2, 'কোমল রে': 1,
-      'গা': 4, 'গাঁ': 4, 'কোমল গা': 3,
-      'মা': 5, 'মাঁ': 5, 'মাষড়': 6,
-      'পা': 7, 'পাঁ': 7,
-      'ধা': 9, 'ধাঁ': 9, 'কোমল ধা': 8,
-      'নি': 11, 'নিঁ': 11, 'কোমল নি': 10
-    };
-    return Object.prototype.hasOwnProperty.call(map, norm) ? map[norm] : null;
-  }
-
-  playSwaraSequence(swaraNames, { loop = true, noteDurationMs = 700 } = {}) {
+  playIntervalSequence(intervals, onNoteStep, onComplete) {
+    this.init();
     this.stopSwaraSequence();
-    const intervals = (Array.isArray(swaraNames) ? swaraNames : [])
-      .map(n => this.swaraToInterval(n))
-      .filter(v => v != null);
-    if (intervals.length === 0) return false;
+    if (!intervals || intervals.length === 0) return;
 
     this.swaraSeqIntervals = intervals;
     this.swaraSeqIndex = 0;
     this.swaraSeqPlaying = true;
-    this._playNextSwara(noteDurationMs);
-    return true;
-  }
 
-  _playNextSwara(durationMs) {
-    const intervals = this.swaraSeqIntervals;
-    const idx = this.swaraSeqIndex % intervals.length;
-    const interval = intervals[idx];
+    const stepIntervalMs = 700;
+    const playNext = () => {
+      if (!this.swaraSeqPlaying || this.swaraSeqIndex >= this.swaraSeqIntervals.length) {
+        this.stopSwaraSequence();
+        if (onComplete) onComplete();
+        return;
+      }
 
-    const root = this.rootOffset;
-    const noteIdx = ((root + interval) % 12 + 12) % 12;
+      const interval = this.swaraSeqIntervals[this.swaraSeqIndex];
+      const root = this.rootOffset;
+      const noteIdx = (root + interval) % 12;
+      const octave = interval >= 12 ? 5 : 4;
+      const freq = this.getNoteFrequency(noteIdx, octave);
 
-    this.stopHarmoniumNote('swara-seq');
-    this.playHarmoniumNote(this.getNoteFrequency(noteIdx, 4), 'swara-seq');
+      this.playHarmoniumNote(freq, 'seq-step');
+      setTimeout(() => this.stopHarmoniumNote('seq-step'), 600);
 
-    this.swaraSeqTimer = setTimeout(() => {
-      if (!this.swaraSeqPlaying) return;
-      this.swaraSeqIndex = (this.swaraSeqIndex + 1) % intervals.length;
-      this._playNextSwara(durationMs);
-    }, durationMs);
+      if (onNoteStep) {
+        onNoteStep(interval, this.swaraSeqIndex);
+      }
+
+      this.swaraSeqIndex++;
+      this.swaraSeqTimer = setTimeout(playNext, stepIntervalMs);
+    };
+
+    playNext();
   }
 
   stopSwaraSequence() {
@@ -534,11 +718,7 @@ class AudioEngine {
       clearTimeout(this.swaraSeqTimer);
       this.swaraSeqTimer = null;
     }
-    this.stopHarmoniumNote('swara-seq');
-  }
-
-  isSwaraSequencePlaying() {
-    return this.swaraSeqPlaying;
+    this.stopHarmoniumNote('seq-step');
   }
 }
 

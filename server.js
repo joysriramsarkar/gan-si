@@ -1,12 +1,16 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MAX_UPLOAD_MB = parseInt(process.env.MAX_UPLOAD_MB || '25', 10);
 const UPLOAD_DIR = path.resolve(process.env.UPLOAD_DIR || './uploads');
 
 // Ensure upload directory exists
@@ -14,20 +18,45 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// Multer storage configuration for audio recordings
+// Security headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: false, // Allows Web Audio and local media streams
+  crossOriginEmbedderPolicy: false
+}));
+
+// Rate limiting to prevent abuse
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // 300 requests per 15 minutes
+  standardHeaders: true,
+  legacyHeaders: false
+});
+app.use('/api/', apiLimiter);
+
+// Secure Multer storage with UUIDs and MIME validation
+const allowedMimeTypes = ['audio/webm', 'audio/wav', 'audio/ogg', 'audio/mp4', 'audio/mpeg'];
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
-    const timestamp = Date.now();
-    const safeName = `riyaz-${timestamp}.webm`;
-    cb(null, safeName);
+    const randomUuid = crypto.randomUUID();
+    const ext = path.extname(file.originalname) || '.webm';
+    cb(null, `riyaz-${Date.now()}-${randomUuid}${ext}`);
   }
 });
+
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB max recording
+  limits: { fileSize: MAX_UPLOAD_MB * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (allowedMimeTypes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid audio file format'));
+    }
+  }
 });
 
 // Middleware
@@ -36,7 +65,7 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/recordings-stream', express.static(UPLOAD_DIR));
 
-// Load data files helper
+// JSON data reader helper
 const loadJsonData = (relativePath) => {
   const filePath = path.join(__dirname, relativePath);
   if (fs.existsSync(filePath)) {
@@ -49,17 +78,17 @@ const loadJsonData = (relativePath) => {
  * REST API ENDPOINTS
  * ======================================================== */
 
-// 1. Health check
+// Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    app: 'সুর সাধনা Pro (Gan-si)',
-    version: '1.0.0',
+    app: 'Sur Sadhana Pro',
+    version: '1.1.0',
     timestamp: new Date().toISOString()
   });
 });
 
-// 2. Classical Ragas API
+// Classical Ragas API
 app.get('/api/ragas', (req, res) => {
   try {
     const ragas = loadJsonData('data/ragas.json');
@@ -67,12 +96,12 @@ app.get('/api/ragas', (req, res) => {
     let result = ragas;
 
     if (thaat) {
-      result = result.filter(r => r.thaat.toLowerCase().includes(thaat.toLowerCase()));
+      result = result.filter(r => r.thaat && r.thaat.toLowerCase().includes(thaat.toLowerCase()));
     }
     if (search) {
-      result = result.filter(r => 
-        r.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.id.toLowerCase().includes(search.toLowerCase())
+      result = result.filter(r =>
+        (r.name && r.name.toLowerCase().includes(search.toLowerCase())) ||
+        (r.id && r.id.toLowerCase().includes(search.toLowerCase()))
       );
     }
     res.json({ count: result.length, ragas: result });
@@ -83,7 +112,8 @@ app.get('/api/ragas', (req, res) => {
 
 app.get('/api/ragas/:id', (req, res) => {
   const ragas = loadJsonData('data/ragas.json');
-  const found = ragas.find(r => r.id.toLowerCase() === req.params.id.toLowerCase());
+  const safeId = path.basename(req.params.id).toLowerCase();
+  const found = ragas.find(r => r.id && r.id.toLowerCase() === safeId);
   if (found) {
     res.json(found);
   } else {
@@ -91,7 +121,7 @@ app.get('/api/ragas/:id', (req, res) => {
   }
 });
 
-// 3. Alankars API
+// Alankars API
 app.get('/api/alankars', (req, res) => {
   try {
     const alankars = loadJsonData('data/alankars.json');
@@ -101,7 +131,76 @@ app.get('/api/alankars', (req, res) => {
   }
 });
 
-// 4. Recordings API (Upload, List, Delete, Stream)
+// Practice Stats API
+app.get('/api/stats', (req, res) => {
+  try {
+    const stats = loadJsonData('data/stats.json');
+    res.json(stats.totalMinutes !== undefined ? stats : {
+      totalMinutes: 0,
+      totalSessions: 0,
+      currentStreak: 0,
+      lastPracticedDate: null,
+      history: []
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
+app.post('/api/stats/session', (req, res) => {
+  try {
+    const statsPath = path.join(__dirname, 'data', 'stats.json');
+    let stats = {
+      totalMinutes: 0,
+      totalSessions: 0,
+      currentStreak: 0,
+      lastPracticedDate: null,
+      history: []
+    };
+
+    if (fs.existsSync(statsPath)) {
+      stats = JSON.parse(fs.readFileSync(statsPath, 'utf-8'));
+    }
+
+    const { minutes, accuracy, alankar } = req.body;
+    const sessionMins = Math.max(1, parseInt(minutes || 1, 10));
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (stats.lastPracticedDate) {
+      const lastDate = new Date(stats.lastPracticedDate);
+      const today = new Date(todayStr);
+      const diffDays = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 1) {
+        stats.currentStreak += 1;
+      } else if (diffDays > 1) {
+        stats.currentStreak = 1;
+      }
+    } else {
+      stats.currentStreak = 1;
+    }
+
+    stats.lastPracticedDate = todayStr;
+    stats.totalMinutes += sessionMins;
+    stats.totalSessions += 1;
+
+    stats.history.unshift({
+      date: new Date().toISOString(),
+      minutes: sessionMins,
+      accuracy: accuracy || null,
+      alankar: alankar || null
+    });
+
+    if (stats.history.length > 50) stats.history.pop();
+
+    fs.writeFileSync(statsPath, JSON.stringify(stats, null, 2));
+    res.json({ message: 'Session logged', stats });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save session stats' });
+  }
+});
+
+// Recordings API with Path Traversal Protection
 app.post('/api/recordings', upload.single('audio'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No audio file provided' });
@@ -124,7 +223,7 @@ app.get('/api/recordings', (req, res) => {
   try {
     const files = fs.readdirSync(UPLOAD_DIR);
     const recordings = files
-      .filter(f => f.endsWith('.webm') || f.endsWith('.wav') || f.endsWith('.mp3'))
+      .filter(f => f.endsWith('.webm') || f.endsWith('.wav') || f.endsWith('.mp3') || f.endsWith('.ogg'))
       .map(filename => {
         const stats = fs.statSync(path.join(UPLOAD_DIR, filename));
         return {
@@ -143,7 +242,10 @@ app.get('/api/recordings', (req, res) => {
 });
 
 app.delete('/api/recordings/:filename', (req, res) => {
-  const target = path.join(UPLOAD_DIR, path.basename(req.params.filename));
+  // Prevent Path Traversal attacks with path.basename
+  const safeFilename = path.basename(req.params.filename);
+  const target = path.join(UPLOAD_DIR, safeFilename);
+
   if (fs.existsSync(target)) {
     try {
       fs.unlinkSync(target);
@@ -156,16 +258,12 @@ app.delete('/api/recordings/:filename', (req, res) => {
   }
 });
 
-// Fallback route for SPA
+// Fallback SPA route
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start Server
 app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`🎵 সুর সাধনা Pro (Gan-si) Node.js Server Running!`);
-  console.log(`🌐 Local URL: http://localhost:${PORT}`);
-  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`====================================================`);
+  console.log(`Sur Sadhana Pro running at http://localhost:${PORT}`);
 });
