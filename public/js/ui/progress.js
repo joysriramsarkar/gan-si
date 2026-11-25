@@ -15,17 +15,22 @@
     const el = document.getElementById('practiceCalendar');
     if (!el || !history) return;
     el.innerHTML = '';
+    const dateKey = window.PracticeAnalytics ? window.PracticeAnalytics.dateKey : null;
     const byDay = {};
-    history.forEach(h => { const d = String(h.date || '').slice(0, 10); byDay[d] = (byDay[d] || 0) + (h.minutes || 0); });
+    history.forEach(h => {
+      const d = h.date || h.practiced_at || '';
+      const key = dateKey ? dateKey(d) : String(d).slice(0, 10);
+      byDay[key] = (byDay[key] || 0) + (h.minutes || 0);
+    });
     const today = new Date();
     for (let i = 181; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+      const key = dateKey ? dateKey(d) : d.toISOString().slice(0, 10);
       const mins = byDay[key] || 0;
       const cell = document.createElement('div');
+      cell.className = `calendar-cell level-${mins === 0 ? 0 : mins < 15 ? 1 : mins < 45 ? 2 : 3}`;
       cell.title = `${key}: ${mins} মিনিট`;
-      cell.style.cssText = `height:12px;border-radius:3px;background:${mins === 0 ? 'var(--bg-card-subtle)' : mins < 15 ? 'rgba(16,185,129,.4)' : mins < 45 ? 'rgba(16,185,129,.75)' : 'var(--accent-green)'}`;
+      cell.setAttribute('aria-label', `${key}: ${mins} মিনিট`);
       el.appendChild(cell);
     }
   }
@@ -42,7 +47,7 @@
     set('dashAcc', ag && ag.avgAccuracy != null ? `${ag.avgAccuracy}%` : '--');
     set('dashBest', ag && ag.bestSession ? `${ag.bestSession.minutes} মি.` : '--');
     const sug = document.getElementById('dashSuggestion');
-    if (sug && A) sug.textContent = '💡 ' + A.suggestNext({});
+    if (sug && A) sug.textContent = 'পরামর্শ: ' + A.suggestNext(window.GanSiPracticeMiss || {});
     renderCalendar(stats.history);
   }
   function wireGenerator() {
@@ -54,7 +59,7 @@
       const bpm = parseInt(document.getElementById('genBpm').value, 10);
       const out = document.getElementById('genOutput');
       if (window.AlankarGenerator) {
-        const g = window.AlankarGenerator.generate({ noteCount: n === 5 ? 5 : n >= 7 ? 7 : 4, motion, bpm, seed: Date.now() % 100000, steps: 8 });
+        const g = window.AlankarGenerator.generate({ noteCount: n === 5 ? 5 : n >= 7 ? 7 : 4, motion, bpm, seed: Date.now() % 100000, steps: 4 });
         out.textContent = `${g.title}: ${g.notes.join(' ')}`;
         if (window.audioEngine && g.intervals) {
           window.audioEngine.playIntervalSequence(g.intervals, null, null);
@@ -66,26 +71,27 @@
     const list = document.getElementById('theoryList');
     if (!list) return;
     try {
-      const f = window.GanSiAuth ? window.GanSiAuth.fetch : fetch;
-      const r = await f('/api/theory');
-      const data = await r.json();
+      const data = window.GanSiMusicData
+        ? await window.GanSiMusicData.loadDocument('/api/theory', '/data/theory.json')
+        : await fetch('/api/theory').then(r => r.json());
       const badge = document.getElementById('theoryVerifiedBadge');
       if (badge) badge.textContent = data.verified ? 'যাচাইকৃত' : 'শিক্ষক-যাচাই বাকি — সহায়ক পাঠ্য';
       list.innerHTML = '';
       (data.chapters || []).forEach(ch => {
         const card = document.createElement('div');
-        card.style.cssText = 'border:1px solid var(--border-color);border-radius:10px;padding:12px;';
-        card.innerHTML = `<strong style="color:var(--primary);">${ch.title}</strong><p style="font-size:.88rem;color:var(--text-muted);margin:6px 0;">${ch.body}</p>`;
+        card.className = 'theory-card';
+        card.innerHTML = `<strong class="theory-title">${ch.title}</strong><p class="theory-body">${ch.body}</p>`;
         (ch.quiz || []).forEach((q, qi) => {
           const qEl = document.createElement('div');
-          qEl.innerHTML = `<div style="font-size:.85rem;font-weight:700;">${q.q}</div>`;
+          qEl.className = 'theory-quiz';
+          qEl.innerHTML = `<div class="theory-question">${q.q}</div>`;
           q.options.forEach((op, oi) => {
             const b = document.createElement('button');
-            b.className = 'btn-outline';
-            b.style.cssText = 'font-size:.8rem;margin:4px 6px 0 0;padding:4px 10px;';
+            b.className = 'btn-outline theory-answer';
             b.textContent = op;
             b.addEventListener('click', () => {
-              b.style.borderColor = oi === q.answer ? 'var(--accent-green)' : 'var(--accent-red)';
+              b.classList.add(oi === q.answer ? 'answer-correct' : 'answer-wrong');
+              b.setAttribute('aria-pressed', 'true');
             });
             qEl.appendChild(b);
           });
@@ -93,7 +99,7 @@
         });
         list.appendChild(card);
       });
-    } catch { list.innerHTML = '<div>তত্ত্ব লোড হয়নি (অফলাইন হলে সংযোগ ফিরলে চেষ্টা করুন)।</div>'; }
+    } catch { list.innerHTML = '<div class="empty-state">তত্ত্ব লোড হয়নি (অফলাইন হলে সংযোগ ফিরলে চেষ্টা করুন)।</div>'; }
   }
   document.addEventListener('DOMContentLoaded', () => {
     loadDashboard();

@@ -5,8 +5,16 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { DatabaseSync } = require('node:sqlite');
 const { DB_PATH } = require('./config');
+
+// Bearer tokens are never stored raw: only this sha256 hex is persisted, so a
+// leaked database file does not leak usable credentials. The client keeps the
+// raw token and the server re-hashes it on every lookup.
+function hashToken(rawToken) {
+  return crypto.createHash('sha256').update(String(rawToken)).digest('hex');
+}
 
 let db = null;
 
@@ -53,7 +61,7 @@ function migrate(database) {
       theme TEXT DEFAULT 'dark'
     );
     CREATE TABLE IF NOT EXISTS api_tokens(
-      token TEXT PRIMARY KEY,
+      token_hash TEXT PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id),
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -63,10 +71,30 @@ function migrate(database) {
   database.prepare(`INSERT OR IGNORE INTO user_settings(user_id) VALUES (1)`).run();
 }
 
+// One-time migration: older databases stored bearer tokens in plaintext.
+// Existing raw tokens are hashed in place; the client still holds the raw
+// value, so every issued session keeps working unchanged.
+function migrateApiTokens(database) {
+  const cols = database.prepare('PRAGMA table_info(api_tokens)').all().map(c => c.name);
+  if (cols.includes('token_hash')) return;
+  database.exec(`
+    CREATE TABLE api_tokens_new(
+      token_hash TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+  const rows = database.prepare('SELECT token, user_id, created_at FROM api_tokens').all();
+  const ins = database.prepare('INSERT OR REPLACE INTO api_tokens_new(token_hash, user_id, created_at) VALUES (?, ?, ?)');
+  for (const r of rows) ins.run(hashToken(r.token), r.user_id, r.created_at);
+  database.exec('DROP TABLE api_tokens; ALTER TABLE api_tokens_new RENAME TO api_tokens;');
+}
+
 function getDb() {
   if (!db) {
     db = openDb();
     migrate(db);
+    migrateApiTokens(db);
     migrateStatsJson(db);
   }
   return db;
@@ -100,4 +128,4 @@ function closeDb() {
   if (db) { try { db.close(); } catch {} db = null; }
 }
 
-module.exports = { openDb, migrate, getDb, closeDb, migrateStatsJson };
+module.exports = { openDb, migrate, getDb, closeDb, migrateStatsJson, migrateApiTokens, hashToken };

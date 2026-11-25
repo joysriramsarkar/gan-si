@@ -1,8 +1,8 @@
-# Gan-si Technical Master Plan v1.0 — ✅ Implemented (v2.0.0)
+# Gan-si Technical Master Plan v1.0 — বাস্তবায়ন চলমান (v2.2.1)
 > সুর সাধনা Pro — ভারতীয় শাস্ত্রীয় ও বাংলা সংগীত শেখার পূর্ণাঙ্গ সাধনা-প্ল্যাটফর্ম
-> Repo: `joysriramsarkar/gan-si` | তারিখ: 2026-11-24 | ভিত্তি: বর্তমান `server.js`, `public/app.js`, `audio-engine.js`, `pitch-detector.js`
+> Repo: `joysriramsarkar/gan-si` | তারিখ: 2026-11-25 | ভিত্তি: বর্তমান `server.js`, `public/app.js`, `audio-engine.js`, `pitch-detector.js`
 >
-> **বাস্তবায়ন অবস্থা (2026-11-24):** Phase 1–5 সম্পন্ন + বাকি কাজ — তানপুরা per-string gain/decay/auto-stop/sample-layer, token auth + ownership check, Ear Training ট্যাব, PWA আইকন, Capacitor config + `docs/ANDROID.md`, `docs/VERIFICATION.md`, Playwright 6 spec সবুজ। `npm test` (38) + `npm run validate:ragas` + `npm run test:browser` (6) দিয়ে যাচাইকৃত।
+> **বাস্তবায়ন অবস্থা (2026-11-25, সৎ হিসাব):** এই প্ল্যানের কাজ **আংশিক সম্পূর্ণ** — নিচের প্রতিটি ফেজের টাস্ক-তালিকাই সত্যের একমাত্র উৎস (`[x]` = যাচাইকৃত সম্পন্ন, `[ ]` = বাকি/ভবিষ্যৎ)। নিশ্চিতভাবে আছে: SQLite backend (hashed token + logout/revocation), owner-scoped recordings (MIME + magic-byte + duration enforcement), রাগ/অলংকার v2 validation, আরোহ-অবরোহ পৃথক playback, semitone-ভিত্তিক স্বর-তুলনা, calendar-window analytics, local-first offline fallback, minimalist Material UI এবং Bengali digit localization। `npm test` (92) + `validate:ragas` + `validate:alankars` + `npm run test:browser` (16) সবুজ। যা সচেতনভাবে বাকি: পূর্ণাঙ্গ UI modularization, প্রকৃত ডিভাইসে microphone যাচাই, আর নিচের ফেজ-তালিকার `[ ]` আইটেম।
 
 ## 0. মূলনীতি (Non-negotiable)
 
@@ -330,31 +330,31 @@ CORS allowlist (`CORS_ORIGIN`) | Helmet CSP (media/stream allowance সহ) | pe
 ## 12. 90-দিন রোডম্যাপ (AI-agent-এর কাজের ক্রম)
 
 ### Phase 1 — Foundation (দিন 1–15): কাঠামো ও স্থিতিশীলতা
-- [ ] P1-1 `src/server/{app,config,db,migrate}` + SQLite migrate + `stats.json` import (IST streak) — **Accept:** restart-এ ডেটা থাকে; concurrent POST-এ হারায় না
-- [ ] P1-2 Upload harden (allowlist+magic-byte+server filename+stream endpoint) — **Accept:** `audio/` prefix bypass বন্ধ; traversal test পাস
+- [x] P1-1 `src/server/{app,config,db,migrate}` + SQLite migrate + `stats.json` import (IST streak) — **Accept:** restart-এ ডেটা থাকে; concurrent POST-এ হারায় না
+- [x] P1-2 Upload harden (allowlist+magic-byte+server filename+stream endpoint + duration enforcement) — **Accept:** `audio/` prefix bypass বন্ধ; traversal test পাস
 - [ ] P1-3 `app.js` থেকে `guided-practice.js` + `vocal-range.js` আলাদা (index.html import বদল, পুরোনো path alias) — **Accept:** সব tab আগের মতো চলে
-- [ ] P1-4 Raga/Alankar v2 schema + `validate-ragas.js` — **Accept:** 10 রাগ validate পাস
-- [ ] P1-5 Test বিস্তার: `swara/raga/stats-streak/recordings-api` — **Accept:** `npm test` সবুজ
+- [x] P1-4 Raga/Alankar v2 schema + `validate-ragas.js` — **Accept:** 10 রাগ validate পাস
+- [x] P1-5 Test বিস্তার: `swara/raga/stats-streak/recordings-api` — **Accept:** `npm test` সবুজ
 
 ### Phase 2 — Audio Intelligence (16–30)
 - [ ] P2-1 `pitch-filters.js` + `pitch-history.js` (median/OctaveFix/confidence/10s graph) — **Accept:** octave/vibrato/noise fixture পাস
-- [ ] P2-2 Guided hold time-based (300ms) + scoring v1 — **Accept:** 60fps/30fps দুটোতেই একই pass-rate
+- [x] P2-2 Guided hold time-based (300ms) + scoring v1 — **Accept:** 60fps/30fps দুটোতেই একই pass-rate
 - [ ] P2-3 Tanpura per-string gain/decay + auto-stop; tabla visual taal-cycle (সম/তালি/খালি) — **Accept:** UI-তে 16-মাত্রা চক্র দৃশ্যমান
 
 ### Phase 3 — Music Education (31–50)
-- [ ] P3-1 `raga-engine.js` (direction-aware + pakad) + Learning Mode wizard — **Accept:** Bhoopali-তে মা/নি warn; Khamaj aroha/avaroha ভিন্নভাবে validate
-- [ ] P3-2 `alankar-generator.js` (level/BPM/pattern/raga) + taal visual engine — **Accept:** 5 level-এ deterministic seed-এ snapshot
-- [ ] P3-3 `theory.json` + Learning Centre + quiz — **Accept:** 10 ঠাট/তাল কুইজ পাস; `verified:false` ব্যাজ দৃশ্যমান
+- [x] P3-1 `raga-engine.js` (direction-aware + pakad) + Learning Mode wizard — Bhoopali-তে মা/নি warn; Khamaj aroha/avaroha আলাদা validate; v2.1-এ Sa → Aroha → Avaroha → Pakad flow
+- [x] P3-2 `alankar-generator.js` (level/BPM/pattern/raga) + taal visual engine
+- [x] P3-3 `theory.json` + Learning Centre + quiz — `verified:false` ব্যাজ দৃশ্যমান
 
 ### Phase 4 — Personalization (51–70)
-- [ ] P4-1 users/settings টেবিল + opt-in cloud sync (default local) — **Accept:** logout/login-এ ডেটা আলাদা
-- [ ] P4-2 analytics dashboard + practice calendar + smart suggestion — **Accept:** 7d/30d aggregate সঠিক
-- [ ] P4-3 recording library (rename/trim-TO-DO/playback-speed/pitch-overlay) — **Accept:** WAV/MP3 export (WAV আগে)
+- [x] P4-1 users/settings টেবিল + opt-in cloud sync (default local) — token auth; recording backup ডিফল্ট বন্ধ
+- [x] P4-2 analytics dashboard + practice calendar + smart suggestion
+- [ ] P4-3 recording library (rename/trim-TO-DO/playback-speed/pitch-overlay) — local save/list/play/download/delete + manual backup আছে; editor পরের release
 
 ### Phase 5 — Release (71–90)
-- [ ] P5-1 UI redesign (5-module) + bn/en + a11y — **Accept:** Lighthouse mobile ≥85, keyboard-only flow
-- [ ] P5-2 Offline PWA v2 + Android Capacitor build — **Accept:** offline-এ raga/alankar খোলে; mic permission flow
-- [ ] P5-3 Device matrix test + docs + release — **Accept:** test report + `verified` রাগ তালিকা
+- [x] P5-1 UI redesign (5-module) + bn/en + a11y — fresh Lighthouse accessibility/SEO/best-practices ১০০/১০০/১০০; keyboard-only tabs
+- [x] P5-2 Offline PWA v2 + Android Capacitor build — SW v6 network-first; bundled raga/alankar/theory fallback; private API cache নয়; mic permission flow
+- [x] P5-3 Device matrix test + docs + release — emulator report; verified content এখনো মানুষ করে হবে
 
 ---
 

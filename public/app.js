@@ -43,6 +43,7 @@ const RiyazIDB = {
         name: name || `রেওয়াজ-${new Date().toLocaleTimeString('bn-BD')}`,
         blob: blob,
         size: blob.size,
+        mimeType: blob.type || 'audio/webm',
         createdAt: new Date().toISOString()
       };
       store.put(item);
@@ -75,9 +76,11 @@ const RiyazIDB = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  const uiIcon = (name) => `<svg class="icon" aria-hidden="true"><use href="/icons.svg#${name}"></use></svg>`;
+
   // PWA Service Worker Registration
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
   }
 
   // Screen Wake Lock Handler
@@ -174,22 +177,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Theme Select
   const themeSelect = document.getElementById('themeSelect');
-  const THEME_KEY = 'gan-si-theme-selection';
+  const THEME_KEY = 'gan-si-theme-selection-v2';
 
   // Recordings & History
   const recordingsList = document.getElementById('recordingsList');
+  const cloudBackupToggle = document.getElementById('cloudBackupToggle');
+  const backupStatus = document.getElementById('backupStatus');
+  const BACKUP_KEY = 'gan-si-cloud-backup-enabled';
+  let activePracticeMeta = null;
+  if (cloudBackupToggle) {
+    try { cloudBackupToggle.checked = localStorage.getItem(BACKUP_KEY) === 'true'; } catch {}
+    cloudBackupToggle.addEventListener('change', () => {
+      try { localStorage.setItem(BACKUP_KEY, String(cloudBackupToggle.checked)); } catch {}
+      if (backupStatus) backupStatus.textContent = cloudBackupToggle.checked ? '☁️ ব্যাকআপ চালু — নতুন রেকর্ডিং আপলোড হবে।' : '🔒 ব্যাকআপ বন্ধ — রেকর্ডিং শুধু এই ডিভাইসে থাকবে।';
+    });
+  }
 
   /* ========================================================
    * 1. THEME SWITCHER
    * ======================================================== */
-  const savedTheme = localStorage.getItem(THEME_KEY) || 'dark';
+  const savedTheme = localStorage.getItem(THEME_KEY) || 'paper';
+  document.documentElement.setAttribute('data-theme', savedTheme);
   document.body.setAttribute('data-theme', savedTheme);
   if (themeSelect) {
     themeSelect.value = savedTheme;
     themeSelect.addEventListener('change', (e) => {
       const val = e.target.value;
+      document.documentElement.setAttribute('data-theme', val);
       document.body.setAttribute('data-theme', val);
       localStorage.setItem(THEME_KEY, val);
+      window.dispatchEvent(new CustomEvent('gansi:themechange', { detail: { theme: val } }));
+      if (pitchDetector.drawGraph) pitchDetector.drawGraph();
     });
   }
 
@@ -273,20 +291,39 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================
    * 6. NAVIGATION & TAB SWITCHING
    * ======================================================== */
-  const tabBtns = document.querySelectorAll('.tab-btn');
-  const tabPanels = document.querySelectorAll('.tab-panel');
+  const tabBtns = [...document.querySelectorAll('.tab-btn')];
+  const tabPanels = [...document.querySelectorAll('.tab-panel')];
 
-  tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.tab;
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanels.forEach(p => p.classList.remove('active'));
+  const activateTab = (btn) => {
+    const target = btn.dataset.tab;
+    tabBtns.forEach(b => {
+      const selected = b === btn;
+      b.classList.toggle('active', selected);
+      b.setAttribute('aria-selected', String(selected));
+      b.tabIndex = selected ? 0 : -1;
+    });
+    tabPanels.forEach(p => {
+      const selected = p.id === target;
+      p.classList.toggle('active', selected);
+      p.setAttribute('aria-hidden', String(!selected));
+    });
+  };
 
-      btn.classList.add('active');
-      const activePanel = document.getElementById(target);
-      if (activePanel) activePanel.classList.add('active');
+  tabBtns.forEach((btn, index) => {
+    btn.addEventListener('click', () => activateTab(btn));
+    btn.addEventListener('keydown', (e) => {
+      let next = null;
+      if (e.key === 'ArrowRight') next = (index + 1) % tabBtns.length;
+      else if (e.key === 'ArrowLeft') next = (index - 1 + tabBtns.length) % tabBtns.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = tabBtns.length - 1;
+      if (next == null) return;
+      e.preventDefault();
+      tabBtns[next].focus();
+      activateTab(tabBtns[next]);
     });
   });
+  activateTab(tabBtns.find(b => b.classList.contains('active')) || tabBtns[0]);
 
   /* ========================================================
    * 7. SCALE SYNC & SWARA MATRIX
@@ -318,12 +355,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const noteIdx = (root + item.interval) % 12;
       const western = pitchDetector.noteStrings[noteIdx];
 
-      const chip = document.createElement('div');
+      const chip = document.createElement('button');
+      chip.type = 'button';
       chip.className = 'swara-chip';
-      chip.id = `swara-chip-${item.interval % 12}`;
+      chip.dataset.sargamIndex = String(item.interval);
+      chip.setAttribute('aria-label', `${item.name} (${western}) শুনুন`);
       chip.innerHTML = `
-        <div class="swara-name">${item.name}</div>
-        <div class="western-name">${western}</div>
+        <span class="swara-name">${item.name}</span>
+        <span class="western-name">${western}</span>
       `;
       chip.addEventListener('click', () => {
         const freq = window.audioEngine.getNoteFrequency(noteIdx, 4);
@@ -342,11 +381,17 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================
    * 8. LIVE PITCH DETECTOR LISTENER & APASWARA DETECTION
    * ======================================================== */
+  pitchDetector.onSessionStart = () => {
+    if (accuracyScoreEl) accuracyScoreEl.textContent = '--';
+  };
+
   startMicBtn.addEventListener('click', async () => {
     if (pitchDetector.isListening) {
+      stopRagaLesson(false);
+      stopGuidedPractice(false);
       pitchDetector.stopListening();
       releaseWakeLock();
-      startMicBtn.innerHTML = "🎤 রেওয়াজ শুরু করুন";
+      startMicBtn.innerHTML = `${uiIcon('mic')} রেওয়াজ শুরু করুন`;
       startMicBtn.classList.remove('btn-danger');
       startMicBtn.classList.add('btn-primary');
       sargamDisplay.textContent = "--";
@@ -359,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       await pitchDetector.startListening();
       requestWakeLock();
-      startMicBtn.innerHTML = "⏹️ রেওয়াজ থামান";
+      startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
       startMicBtn.classList.remove('btn-primary');
       startMicBtn.classList.add('btn-danger');
     } catch (err) {
@@ -369,6 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   pitchDetector.onPitchUpdate = (data) => {
     document.querySelectorAll('.swara-chip').forEach(c => c.classList.remove('active-pitch'));
+    handleRagaLearningPitch(data);
 
     if (!data) {
       sargamDisplay.classList.remove('active', 'in-tune');
@@ -394,17 +440,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.isInTune) {
       sargamDisplay.classList.add('in-tune');
       pitchHero.classList.add('locked-in');
-      pitchNeedle.style.backgroundColor = '#10b981';
-      pitchNeedle.style.boxShadow = '0 0 14px #10b981';
+      pitchNeedle.style.removeProperty('background-color');
+      pitchNeedle.style.removeProperty('box-shadow');
     } else {
       sargamDisplay.classList.remove('in-tune');
       sargamDisplay.classList.add('active');
       pitchHero.classList.remove('locked-in');
-      pitchNeedle.style.backgroundColor = '#f59e0b';
-      pitchNeedle.style.boxShadow = '0 0 8px #f59e0b';
+      pitchNeedle.style.removeProperty('background-color');
+      pitchNeedle.style.removeProperty('box-shadow');
     }
 
-    const activeChip = document.getElementById(`swara-chip-${data.sargamIndex}`);
+    const activeChip = document.querySelector(`.swara-chip[data-sargam-index="${data.sargamIndex}"]`);
     if (activeChip) activeChip.classList.add('active-pitch');
 
     if (accuracyScoreEl && data.accuracyPercent) {
@@ -419,6 +465,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * ======================================================== */
   if (clearRagaBtn) {
     clearRagaBtn.addEventListener('click', () => {
+      stopRagaLesson(false);
       pitchDetector.setActiveRaga(null);
       activeRagaPill.style.display = 'none';
       if (apaswaraAlert) apaswaraAlert.classList.remove('visible');
@@ -440,11 +487,11 @@ document.addEventListener('DOMContentLoaded', () => {
   startTanpuraBtn.addEventListener('click', () => {
     if (window.audioEngine.isTanpuraPlaying) {
       window.audioEngine.stopTanpura();
-      startTanpuraBtn.innerHTML = "🪕 তানপুরা";
+      startTanpuraBtn.innerHTML = `${uiIcon('tanpura')} তানপুরা`;
       startTanpuraBtn.classList.remove('active');
     } else {
       window.audioEngine.startTanpura(onStringPluck);
-      startTanpuraBtn.innerHTML = "🔇 তানপুরা বন্ধ";
+      startTanpuraBtn.innerHTML = `${uiIcon('stop')} তানপুরা বন্ধ`;
       startTanpuraBtn.classList.add('active');
     }
   });
@@ -584,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isPlaying = window.audioEngine.toggleHarmoniumDrone(saFreq, 'drone-sa');
       if (isPlaying) {
         droneSaBtn.classList.add('active');
-        droneSaBtn.textContent = '🔊 সা ড্রোন চালু';
+        droneSaBtn.innerHTML = `${uiIcon('play')} সা ড্রোন চালু`;
       } else {
         droneSaBtn.classList.remove('active');
         droneSaBtn.textContent = 'সা সুরতি (Sa Drone)';
@@ -599,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const isPlaying = window.audioEngine.toggleHarmoniumDrone(paFreq, 'drone-pa');
       if (isPlaying) {
         dronePaBtn.classList.add('active');
-        dronePaBtn.textContent = '🔊 পা ড্রোন চালু';
+        dronePaBtn.innerHTML = `${uiIcon('play')} পা ড্রোন চালু`;
       } else {
         dronePaBtn.classList.remove('active');
         dronePaBtn.textContent = 'পা সুরতি (Pa Drone)';
@@ -674,7 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startTaalBtn.addEventListener('click', () => {
     if (window.audioEngine.isMetronomePlaying) {
       window.audioEngine.stopMetronome();
-      startTaalBtn.innerHTML = "🥁 তাল শুরু করুন";
+      startTaalBtn.innerHTML = `${uiIcon('drum')} তাল শুরু করুন`;
       startTaalBtn.classList.remove('active');
       document.querySelectorAll('.matra-pill').forEach(p => p.classList.remove('current-beat'));
     } else {
@@ -683,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const active = document.getElementById(`matra-pill-${beat.matra}`);
         if (active) active.classList.add('current-beat');
       });
-      startTaalBtn.innerHTML = "⏹️ তাল বন্ধ করুন";
+      startTaalBtn.innerHTML = `${uiIcon('stop')} তাল বন্ধ করুন`;
       startTaalBtn.classList.add('active');
     }
   });
@@ -697,7 +744,31 @@ document.addEventListener('DOMContentLoaded', () => {
   let isGuidedPracticeRunning = false;
   let practiceScore = 0;
   let guidedHoldStart = null; // P2-2: time-based hold (300ms), fps-independent
+  let guidedSessionStartedAt = null;
+  let guidedAlankarId = null;
   const GUIDED_HOLD_MS = 300;
+
+  // Swara identity by semitone, not by display string. Stripping accidentals
+  // from names (the old normalizer) made রে and রে♭ indistinguishable, so a
+  // komal note could pass as its shuddha neighbour. The detector reports
+  // sargamIndex (0-11 from Sa); guided targets are mapped to the same scale.
+  const SWARA_INDEX = { 'সা': 0, 'রে♭': 1, 'রে': 2, 'গা♭': 3, 'গা': 4, 'মা': 5, 'মা♯': 6, 'পা': 7, 'ধা♭': 8, 'ধা': 9, 'নি♭': 10, 'নি': 11 };
+  const swaraIndexOf = (name) => {
+    const t = String(name || '').trim().replace('াঁ', 'া');
+    return SWARA_INDEX[t] ?? null;
+  };
+  // Per-swara miss counts for the practice-suggestion engine (analytics).
+  const missBySwara = {};
+  let lastMissAtBySwara = {};
+  const trackMiss = (swara, now) => {
+    const t = String(swara || '').trim();
+    if (!t) return;
+    const last = lastMissAtBySwara[t] || 0;
+    if (now - last < 1500) return; // one miss per target per ~1.5s
+    lastMissAtBySwara[t] = now;
+    missBySwara[t] = (missBySwara[t] || 0) + 1;
+    window.GanSiPracticeMiss = missBySwara;
+  };
 
   const defaultAlankars = [
     {
@@ -731,10 +802,11 @@ document.addEventListener('DOMContentLoaded', () => {
     guidedNotesQueue = parseAlankarSwaras(alankar.notes);
     currentTargetIndex = 0;
     practiceScore = 0;
-    targetHoldCounter = 0;
+    guidedHoldStart = null;
+    guidedAlankarId = alankar.id != null ? String(alankar.id) : null;
 
     if (guidedPracticeTitle) {
-      guidedPracticeTitle.textContent = `🎯 ${alankar.title}`;
+      guidedPracticeTitle.innerHTML = `${uiIcon('target')} ${alankar.title}`;
     }
 
     if (guidedSwaraTrail) {
@@ -754,11 +826,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const startGuidedPractice = async () => {
+    if (isRagaLessonRunning) stopRagaLesson(false);
     if (!pitchDetector.isListening) {
       try {
         await pitchDetector.startListening();
         requestWakeLock();
-        startMicBtn.innerHTML = "⏹️ রেওয়াজ থামান";
+        startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
         startMicBtn.classList.remove('btn-primary');
         startMicBtn.classList.add('btn-danger');
       } catch (err) {
@@ -768,25 +841,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     isGuidedPracticeRunning = true;
+    guidedSessionStartedAt = Date.now();
+    activePracticeMeta = guidedAlankarId ? { alankar_id: guidedAlankarId } : null;
     startGuidedPracticeBtn.style.display = 'none';
     stopGuidedPracticeBtn.style.display = 'inline-flex';
     guidedStatsStrip.style.display = 'flex';
   };
 
-  const stopGuidedPractice = () => {
+  const stopGuidedPractice = (log = true) => {
     isGuidedPracticeRunning = false;
+    guidedHoldStart = null;
+    if (activePracticeMeta && activePracticeMeta.alankar_id) activePracticeMeta = null;
     startGuidedPracticeBtn.style.display = 'inline-flex';
     stopGuidedPracticeBtn.style.display = 'none';
 
-    (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        minutes: 2,
-        accuracy: Math.min(100, Math.round(practiceScore * 2)),
-        alankar: guidedPracticeTitle ? guidedPracticeTitle.textContent : "অলংকার"
-      })
-    }).then(() => loadUserStats()).catch(() => {});
+    // Whole minutes are logged by the interval logger with alankar_id.
+    // Do not add a fixed two-minute session on every stop.
+    if (log && guidedSessionStartedAt) {
+      const elapsed = formatElapsed(Date.now() - guidedSessionStartedAt);
+      if (currentTargetNoteEl) currentTargetNoteEl.textContent = `থামানো হয়েছে (${elapsed})`;
+    }
+    guidedSessionStartedAt = null;
   };
 
   if (startGuidedPracticeBtn) startGuidedPracticeBtn.addEventListener('click', startGuidedPractice);
@@ -796,10 +871,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!isGuidedPracticeRunning || currentTargetIndex >= guidedNotesQueue.length) return;
 
     const targetSwara = guidedNotesQueue[currentTargetIndex];
-    const norm = (s) => String(s || '').replace(/['ঁ♭♯]/g, '').trim();
     const now = Date.now();
 
-    if (data.isInTune && norm(targetSwara) === norm(data.sargamShortName)) {
+    // Match by semitone index so komal and shuddha variants of the same swara
+    // stay distinct; the string fallback remains only for unknown notations.
+    const targetIdx = swaraIndexOf(targetSwara);
+    const matched = data.isInTune && (
+      targetIdx != null
+        ? targetIdx === data.sargamIndex
+        : String(data.sargamShortName || '').trim() === String(targetSwara || '').trim()
+    );
+
+    if (matched) {
       if (guidedHoldStart == null) guidedHoldStart = now;
       if (now - guidedHoldStart >= GUIDED_HOLD_MS) {
         guidedHoldStart = null;
@@ -828,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else {
       guidedHoldStart = null;
+      if (data.isInTune) trackMiss(targetSwara, now);
     }
   };
 
@@ -855,10 +939,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (items[0]) setupGuidedPractice(items[0]);
   };
 
-  fetch('/api/alankars')
-    .then(res => res.json())
-    .then(data => renderAlankars(data.alankars || defaultAlankars))
-    .catch(() => renderAlankars(defaultAlankars));
+  const loadAlankars = async () => {
+    try {
+      const items = window.GanSiMusicData
+        ? await window.GanSiMusicData.loadCollection('/api/alankars', '/data/alankars.json', 'alankars')
+        : await fetch('/api/alankars').then(r => r.json()).then(d => d.alankars || []);
+      renderAlankars(items.length ? items : defaultAlankars);
+    } catch { renderAlankars(defaultAlankars); }
+  };
+  loadAlankars();
 
   /* ========================================================
    * 14. VOCAL RANGE FINDER
@@ -888,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleRangeTestBtn.addEventListener('click', async () => {
       if (pitchDetector.isTestingRange) {
         const result = pitchDetector.stopRangeTest();
-        toggleRangeTestBtn.textContent = '🎙️ পুনরায় টেস্ট করুন';
+        toggleRangeTestBtn.innerHTML = `${uiIcon('mic')} পুনরায় টেস্ট করুন`;
         toggleRangeTestBtn.classList.remove('btn-danger');
         toggleRangeTestBtn.classList.add('btn-primary');
 
@@ -904,7 +993,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             await pitchDetector.startListening();
             requestWakeLock();
-            startMicBtn.innerHTML = "⏹️ রেওয়াজ থামান";
+            startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
             startMicBtn.classList.remove('btn-primary');
             startMicBtn.classList.add('btn-danger');
           } catch (e) {
@@ -914,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         pitchDetector.startRangeTest();
-        toggleRangeTestBtn.textContent = '⏹️ টেস্ট সমাপ্ত করুন';
+        toggleRangeTestBtn.innerHTML = `${uiIcon('stop')} টেস্ট সমাপ্ত করুন`;
         toggleRangeTestBtn.classList.remove('btn-primary');
         toggleRangeTestBtn.classList.add('btn-danger');
         rangeResultSummary.style.display = 'none';
@@ -941,6 +1030,186 @@ document.addEventListener('DOMContentLoaded', () => {
    * 15. RAGA EXPLORER & AUDIO PREVIEW (আরোহ-অবরোহ শুনুন)
    * ======================================================== */
   const ragaGrid = document.getElementById('ragaGrid');
+  const ragaLearningBox = document.getElementById('ragaLearningBox');
+  const ragaLearningBadge = document.getElementById('ragaLearningBadge');
+  const ragaStageStepper = document.getElementById('ragaStageStepper');
+  const ragaLessonStage = document.getElementById('ragaLessonStage');
+  const ragaLessonTarget = document.getElementById('ragaLessonTarget');
+  const ragaLessonProgress = document.getElementById('ragaLessonProgress');
+  const ragaHoldMeter = document.getElementById('ragaHoldMeter');
+  const ragaHoldFill = document.getElementById('ragaHoldFill');
+  const ragaLessonTrail = document.getElementById('ragaLessonTrail');
+  const ragaLessonMessage = document.getElementById('ragaLessonMessage');
+  const startRagaLessonBtn = document.getElementById('startRagaLessonBtn');
+  const stopRagaLessonBtn = document.getElementById('stopRagaLessonBtn');
+  const playRagaTargetBtn = document.getElementById('playRagaTargetBtn');
+  const ragaLessonStats = document.getElementById('ragaLessonStats');
+  const ragaLessonElapsed = document.getElementById('ragaLessonElapsed');
+  const ragaLessonAccuracy = document.getElementById('ragaLessonAccuracy');
+  const ragaLessonPakad = document.getElementById('ragaLessonPakad');
+  let ragaLessonSession = null;
+  let isRagaLessonRunning = false;
+  let ragaLessonTimer = null;
+  const ragaPitchHistory = window.PitchHistory ? new window.PitchHistory({ windowSec: 30 }) : null;
+
+  const formatElapsed = (ms) => {
+    const sec = Math.max(0, Math.floor(ms / 1000));
+    return `${Math.floor(sec / 60).toString().padStart(2, '0')}:${(sec % 60).toString().padStart(2, '0')}`;
+  };
+
+  const syncRagaPracticeTarget = () => {
+    if (!ragaLessonSession) return;
+    const { stage, target } = ragaLessonSession.current();
+    pitchDetector.practiceDirection = stage ? stage.direction : null;
+    pitchDetector.practiceTargetMidi = target ? target.midi : null;
+  };
+
+  const renderRagaLesson = () => {
+    if (!ragaLessonSession || !ragaLearningBox) return;
+    const s = ragaLessonSession;
+    const { stage, target } = s.current();
+    ragaLearningBox.hidden = false;
+    ragaLearningBadge.textContent = s.raga.verified ? 'যাচাইকৃত' : 'শিক্ষক-যাচাই বাকি';
+    ragaStageStepper.innerHTML = '';
+    s.stages.forEach((st, i) => {
+      const el = document.createElement('div');
+      el.className = `lesson-step ${i < s.stageIndex ? 'complete' : ''} ${i === s.stageIndex ? 'current' : ''}`;
+      el.textContent = `${i < s.stageIndex ? '✅ ' : ''}${st.title}`;
+      ragaStageStepper.appendChild(el);
+    });
+    ragaLessonStage.textContent = stage ? stage.title : 'সম্পন্ন';
+    ragaLessonTarget.textContent = target ? `${target.label} · ${window.Swara.saptakLabel(window.Swara.saptakOf(target.midi, s.baseMidi - 48))}` : '🎉';
+    ragaLessonProgress.textContent = `${s.progress()}%`;
+    ragaLessonTrail.innerHTML = '';
+    if (stage) {
+      stage.targets.forEach((t, i) => {
+        const el = document.createElement('div');
+        el.className = `guided-swara-item ${i < s.targetIndex ? 'hit-success' : ''} ${i === s.targetIndex ? 'target-current' : ''}`;
+        el.textContent = t.label;
+        ragaLessonTrail.appendChild(el);
+      });
+    }
+    syncRagaPracticeTarget();
+    updateRagaLessonLive();
+  };
+
+  const updateRagaLessonLive = () => {
+    if (!ragaLessonSession) return;
+    const s = ragaLessonSession;
+    const holdPct = Math.round(s.holdProgress() * 100);
+    ragaHoldFill.style.width = `${holdPct}%`;
+    ragaHoldMeter.setAttribute('aria-valuenow', String(holdPct));
+    if (s.lastMessage) ragaLessonMessage.textContent = s.lastMessage;
+    const summary = s.summary();
+    ragaLessonElapsed.textContent = formatElapsed(summary.elapsedMs);
+    ragaLessonAccuracy.textContent = `${summary.accuracy}%`;
+    ragaLessonPakad.textContent = s.pakadSequence.length ? `${Math.round(summary.pakadSimilarity * 100)}%` : '--';
+  };
+
+  const prepareRagaLesson = (raga) => {
+    if (isRagaLessonRunning) stopRagaLesson(false);
+    const root = pitchDetector.getRootOffset();
+    ragaLessonSession = window.RagaLearning.createSession(raga, { baseMidi: 48 + root, holdMs: 300 });
+    window.ragaLessonSession = ragaLessonSession;
+    ragaPitchHistory && ragaPitchHistory.clear();
+    isRagaLessonRunning = false;
+    startRagaLessonBtn.style.display = 'inline-flex';
+    stopRagaLessonBtn.style.display = 'none';
+    ragaLessonStats.style.display = 'none';
+    ragaLessonMessage.textContent = `${raga.name} প্রস্তুত — “শিক্ষা শুরু করুন” চাপুন।`;
+    renderRagaLesson();
+    ragaLearningBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  const startRagaLesson = async () => {
+    if (!ragaLessonSession || isRagaLessonRunning) return;
+    if (ragaLessonSession.finishedAt != null) {
+      prepareRagaLesson(ragaLessonSession.raga);
+    }
+    if (isGuidedPracticeRunning) stopGuidedPractice(false);
+    if (!pitchDetector.isListening) {
+      try {
+        await pitchDetector.startListening();
+        requestWakeLock();
+        startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
+        startMicBtn.classList.remove('btn-primary');
+        startMicBtn.classList.add('btn-danger');
+      } catch {
+        ragaLessonMessage.textContent = 'মাইক্রোফোন অনুমতি ছাড়া রাগ শিক্ষা শুরু করা যায়নি।';
+        return;
+      }
+    }
+    isRagaLessonRunning = true;
+    activePracticeMeta = { raga_id: ragaLessonSession.raga.id };
+    ragaLessonSession.start();
+    startRagaLessonBtn.style.display = 'none';
+    stopRagaLessonBtn.style.display = 'inline-flex';
+    ragaLessonStats.style.display = 'flex';
+    ragaLessonMessage.textContent = 'সা স্থির করুন…';
+    syncRagaPracticeTarget();
+    clearInterval(ragaLessonTimer);
+    ragaLessonTimer = setInterval(updateRagaLessonLive, 250);
+  };
+
+  const stopRagaLesson = (log = true) => {
+    if (!ragaLessonSession) return;
+    const wasRunning = isRagaLessonRunning;
+    const summary = ragaLessonSession.summary();
+    if (wasRunning) ragaLessonSession.stop('stopped');
+    isRagaLessonRunning = false;
+    clearInterval(ragaLessonTimer);
+    ragaLessonTimer = null;
+    pitchDetector.practiceDirection = null;
+    pitchDetector.practiceTargetMidi = null;
+    if (activePracticeMeta && activePracticeMeta.raga_id) activePracticeMeta = null;
+    startRagaLessonBtn.style.display = 'inline-flex';
+    stopRagaLessonBtn.style.display = 'none';
+    updateRagaLessonLive();
+    // Whole minutes are already logged by the interval logger with raga_id.
+    // Avoid a second, inflated POST here; sub-minute practice remains local UI data.
+    if (log && wasRunning) ragaLessonMessage.textContent = `থামানো হয়েছে — ${formatElapsed(summary.elapsedMs)} অনুশীলন।`;
+  };
+
+  const completeRagaLesson = () => {
+    const summary = ragaLessonSession.summary();
+    stopRagaLesson(false);
+    ragaLessonMessage.textContent = `🎉 শিক্ষা-ক্রম সম্পন্ন! পাকড়ের সম্ভাব্য মিল ${Math.round(summary.pakadSimilarity * 100)}% — সহায়ক পরিমাপ, শিল্পের চূড়ান্ত বিচার নয়।`;
+  };
+
+  const handleRagaLearningPitch = (data) => {
+    if (!isRagaLessonRunning || !ragaLessonSession) return;
+    const now = Date.now();
+    const { target } = ragaLessonSession.current();
+    if (data && target) {
+      ragaPitchHistory && ragaPitchHistory.push({ freq: data.freq, targetMidi: target.midi, cents: data.cents, t: now });
+    }
+    const result = ragaLessonSession.feed({
+      midi: data ? data.noteNum : null,
+      cents: data ? data.cents : 999,
+      inTune: !!(data && data.isInTune),
+      now
+    });
+    if (result === 'advanced' || result === 'stage-complete' || result === 'done') renderRagaLesson();
+    else updateRagaLessonLive();
+    if (result === 'done') completeRagaLesson();
+  };
+
+  startRagaLessonBtn && startRagaLessonBtn.addEventListener('click', startRagaLesson);
+  stopRagaLessonBtn && stopRagaLessonBtn.addEventListener('click', () => stopRagaLesson(true));
+  playRagaTargetBtn && playRagaTargetBtn.addEventListener('click', () => {
+    if (!ragaLessonSession) return;
+    const { target } = ragaLessonSession.current();
+    if (!target) return;
+    const root = ragaLessonSession.baseMidi - 48;
+    const saFreq = window.audioEngine.getNoteFrequency(root, 3);
+    const jiCents = window.Swara.JI_CENTS[((target.interval % 12) + 12) % 12] + 1200 * Math.floor(target.interval / 12);
+    const freq = pitchDetector.tuningSystem === 'just_intonation'
+      ? saFreq * Math.pow(2, jiCents / 1200)
+      : window.Swara.midiToFreq(target.midi, window.audioEngine.baseFreqA4);
+    window.audioEngine.playHarmoniumNote(freq, 'raga-lesson-target');
+    setTimeout(() => window.audioEngine.stopHarmoniumNote('raga-lesson-target'), 700);
+  });
+
   const renderRagas = (items) => {
     if (!ragaGrid) return;
     ragaGrid.innerHTML = '';
@@ -950,14 +1219,15 @@ document.addEventListener('DOMContentLoaded', () => {
       card.innerHTML = `
         <h3>${r.name}</h3>
         <div class="raga-info-row"><strong>ঠাট:</strong> ${r.thaat} | <strong>সময়:</strong> ${r.time}</div>
-        <div class="raga-info-row"><strong>বাদী:</strong> ${r.vadi} | <strong>সমবাদী:</strong> ${r.samvadi}</div>
-        <div class="raga-info-row"><strong>বর্জিত স্বর:</strong> ${r.varjya || 'নেই'}</div>
+        <div class="raga-info-row"><strong>বাদী:</strong> ${r.vadi_text || r.vadi} | <strong>সমবাদী:</strong> ${r.samvadi_text || r.samvadi}</div>
+        <div class="raga-info-row"><strong>বর্জিত স্বর:</strong> ${r.varjya || 'নেই'} ${r.verified ? '• ✅ যাচাইকৃত' : '• ⏳ শিক্ষক-যাচাই বাকি'}</div>
         <div class="raga-info-row"><strong>আরোহ:</strong> ${r.aroha}</div>
         <div class="raga-info-row"><strong>অবরোহ:</strong> ${r.avoroha}</div>
         <div class="raga-info-row"><strong>পকড়:</strong> ${r.pakad}</div>
-        <div style="display:flex;gap:8px;margin-top:10px;">
-          <button class="btn-outline raga-play-btn" style="font-size:0.8rem;padding:6px 12px;flex:1;">▶️ আরোহ-অবরোহ শুনুন</button>
-          <button class="btn-primary raga-select-btn" style="font-size:0.8rem;padding:6px 12px;flex:1;">🎵 এই রাগে রেওয়াজ</button>
+        <div class="raga-actions">
+          <button class="btn-outline raga-play-btn">${uiIcon('play')} আরোহ-অবরোহ শুনুন</button>
+          <button class="btn-primary raga-select-btn">${uiIcon('music')} এই রাগে রেওয়াজ</button>
+          <button class="btn-outline raga-learn-btn">${uiIcon('target')} ধাপে ধাপে শিখুন</button>
         </div>
       `;
 
@@ -967,14 +1237,26 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         if (window.audioEngine.swaraSeqPlaying) {
           window.audioEngine.stopSwaraSequence();
-          playBtn.textContent = '▶️ আরোহ-অবরোহ শুনুন';
+          playBtn.innerHTML = `${uiIcon('play')} আরোহ-অবরোহ শুনুন`;
         } else {
-          playBtn.textContent = '⏹️ থামান';
-          const intervals = r.allowedIntervals || [0, 2, 4, 5, 7, 9, 11];
-          // Construct Aroha + Avoroha sequence
-          const fullSeq = [...intervals, 12, ...[...intervals].reverse()];
+          playBtn.innerHTML = `${uiIcon('stop')} থামান`;
+          // Aroha and avaroha are distinct melodic lines: play each as
+          // written. When aroha ends on সাঁ (12) and avaroha starts there,
+          // sound that Sa' once instead of twice. Ragas without interval data
+          // fall back to the plain scale up and down.
+          const aroha = Array.isArray(r.aroha_intervals) && r.aroha_intervals.length ? r.aroha_intervals : null;
+          const avaroha = Array.isArray(r.avaroha_intervals) && r.avaroha_intervals.length ? r.avaroha_intervals : null;
+          let fullSeq;
+          if (aroha && avaroha) {
+            fullSeq = aroha[aroha.length - 1] === avaroha[0]
+              ? [...aroha, ...avaroha.slice(1)]
+              : [...aroha, ...avaroha];
+          } else {
+            const base = r.allowedIntervals || [0, 2, 4, 5, 7, 9, 11];
+            fullSeq = [...base, 12, ...[...base].reverse()];
+          }
           window.audioEngine.playIntervalSequence(fullSeq, null, () => {
-            playBtn.textContent = '▶️ আরোহ-অবরোহ শুনুন';
+            playBtn.innerHTML = `${uiIcon('play')} আরোহ-অবরোহ শুনুন`;
           });
         }
       });
@@ -983,6 +1265,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const selectBtn = card.querySelector('.raga-select-btn');
       selectBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        stopRagaLesson(false);
+        if (isGuidedPracticeRunning) stopGuidedPractice(false);
         pitchDetector.setActiveRaga(r);
         if (activeRagaPill && activeRagaName) {
           activeRagaName.textContent = r.name;
@@ -995,28 +1279,71 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.tab-btn[data-tab="tab-pitch"]').click();
       });
 
+      const learnBtn = card.querySelector('.raga-learn-btn');
+      learnBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        stopRagaLesson(false);
+        pitchDetector.setActiveRaga(r);
+        if (activeRagaPill && activeRagaName) {
+          activeRagaName.textContent = r.name;
+          activeRagaPill.style.display = 'inline-flex';
+        }
+        if (r.firstString !== undefined) {
+          tanpuraTuningSelect.value = r.firstString;
+          window.audioEngine.tanpuraTuning = r.firstString;
+        }
+        prepareRagaLesson(r);
+      });
+
       ragaGrid.appendChild(card);
     });
   };
 
-  fetch('/api/ragas')
-    .then(res => res.json())
-    .then(data => renderRagas(data.ragas || []))
-    .catch(() => console.warn('Could not fetch ragas API'));
+  const loadRagas = async () => {
+    try {
+      const items = window.GanSiMusicData
+        ? await window.GanSiMusicData.loadCollection('/api/ragas', '/data/ragas.json', 'ragas')
+        : await fetch('/api/ragas').then(r => r.json()).then(d => d.ragas || []);
+      renderRagas(items);
+    } catch { console.warn('Could not load raga data'); }
+  };
+  loadRagas();
 
   /* ========================================================
    * 16. INDEXEDDB CLIENT-SIDE PRIVATE RECORDINGS & CLOUD SYNC
    * ======================================================== */
+  const recordingExtension = (mime = '') => {
+    if (mime.includes('ogg')) return 'ogg';
+    if (mime.includes('mp4')) return 'm4a';
+    if (mime.includes('mpeg')) return 'mp3';
+    if (mime.includes('wav')) return 'wav';
+    return 'webm';
+  };
+
+  const backupRecording = async (rec) => {
+    if (!rec || !rec.blob) return false;
+    if (backupStatus) backupStatus.textContent = '☁️ ব্যাকআপ আপলোড হচ্ছে…';
+    try {
+      const ext = recordingExtension(rec.mimeType || rec.blob.type);
+      const formData = new FormData();
+      formData.append('audio', rec.blob, `riyaz-${Date.now()}.${ext}`);
+      const f = window.GanSiAuth ? window.GanSiAuth.fetch : fetch;
+      const res = await f('/api/recordings', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`backup failed: ${res.status}`);
+      if (backupStatus) backupStatus.textContent = '✅ ব্যাকআপ সম্পন্ন।';
+      return true;
+    } catch {
+      if (backupStatus) backupStatus.textContent = '⚠️ ব্যাকআপ ব্যর্থ; রেকর্ডিংটি এখনো নিরাপদে এই ডিভাইসে আছে।';
+      return false;
+    }
+  };
+
   const loadLocalRecordings = async () => {
     if (!recordingsList) return;
     const localItems = await RiyazIDB.getAll();
 
     if (!localItems || localItems.length === 0) {
-      recordingsList.innerHTML = `
-        <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:20px;">
-          কোনো রেকর্ডিং নেই। উপরে <strong>"⏺️ রেকর্ড"</strong> বাটন চেপে আপনার রেওয়াজ রেকর্ড করুন। (এটি সম্পূর্ণ গোপনে আপনার ব্রাউজারে সংরক্ষিত থাকবে)
-        </div>
-      `;
+      recordingsList.innerHTML = '<div class="empty-state">কোনো রেকর্ডিং নেই। উপরে <strong>“রেকর্ড”</strong> বাটন চেপে আপনার রেওয়াজ রেকর্ড করুন। এটি সম্পূর্ণ গোপনে আপনার ব্রাউজারে সংরক্ষিত থাকবে।</div>';
       return;
     }
 
@@ -1034,17 +1361,28 @@ document.addEventListener('DOMContentLoaded', () => {
       const sizeMb = (rec.size / (1024 * 1024)).toFixed(2);
       const audioUrl = URL.createObjectURL(rec.blob);
 
+      const ext = recordingExtension(rec.mimeType || rec.blob.type);
+      const safeName = String(rec.name || 'রেওয়াজ').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       item.innerHTML = `
-        <div>
-          <strong>${rec.name}</strong>
-          <div style="font-size:0.75rem;color:var(--text-muted);">${formattedDate} • ${sizeMb} MB (ব্যক্তিগত অফলাইন স্টোরেজ)</div>
+        <div class="recording-meta">
+          <strong>${safeName}</strong>
+          <div class="recording-details">${formattedDate} • ${sizeMb} MB (ব্যক্তিগত অফলাইন স্টোরেজ)</div>
         </div>
         <audio controls src="${audioUrl}"></audio>
-        <div style="display:flex;gap:6px;">
-          <a class="btn-outline" style="font-size:0.8rem;text-decoration:none;" href="${audioUrl}" download="${rec.name}.webm">ডাউনলোড</a>
-          <button class="btn-outline btn-delete" style="font-size:0.8rem;color:var(--accent-red);" title="মুছুন">🗑️</button>
+        <div class="recording-actions">
+          <a class="btn-outline" href="${audioUrl}" download="${safeName}.${ext}">${uiIcon('download')} ডাউনলোড</a>
+          <button class="btn-outline btn-backup">${uiIcon('cloud')} ব্যাকআপ</button>
+          <button class="btn-outline btn-delete" title="মুছুন" aria-label="রেকর্ডিং মুছুন">${uiIcon('trash')}</button>
         </div>
       `;
+
+      const backupBtn = item.querySelector('.btn-backup');
+      backupBtn.addEventListener('click', async () => {
+        backupBtn.disabled = true;
+        const ok = await backupRecording(rec);
+        backupBtn.disabled = false;
+        backupBtn.innerHTML = ok ? `${uiIcon('cloud')} ব্যাকআপ হয়েছে` : `${uiIcon('cloud')} পুনরায় চেষ্টা`;
+      });
 
       const deleteBtn = item.querySelector('.btn-delete');
       deleteBtn.addEventListener('click', async () => {
@@ -1063,18 +1401,17 @@ document.addEventListener('DOMContentLoaded', () => {
   recordBtn.addEventListener('click', async () => {
     if (window.audioEngine.isRecording) {
       const blob = await window.audioEngine.stopRecording();
-      recordBtn.innerHTML = "⏺️ রেকর্ড";
+      recordBtn.innerHTML = `${uiIcon('record')} রেকর্ড`;
       recordBtn.classList.remove('btn-danger');
 
       if (blob) {
-        // 1. Save locally in private IndexedDB
-        await RiyazIDB.save(blob, `রেওয়াজ-${new Date().toLocaleTimeString('bn-BD')}`);
+        // 1. Always save locally in private IndexedDB.
+        const rec = await RiyazIDB.save(blob, `রেওয়াজ-${new Date().toLocaleTimeString('bn-BD')}`);
         loadLocalRecordings();
 
-        // 2. Optional server upload if backend available
-        const formData = new FormData();
-        formData.append('audio', blob, `riyaz-${Date.now()}.webm`);
-        (window.GanSiAuth ? window.GanSiAuth.fetch('/api/recordings', { method: 'POST', body: formData }) : fetch('/api/recordings', { method: 'POST', body: formData })).catch(() => {});
+        // 2. Upload only after explicit opt-in.
+        if (rec && cloudBackupToggle && cloudBackupToggle.checked) await backupRecording(rec);
+        else if (backupStatus) backupStatus.textContent = '🔒 রেকর্ডিং শুধু এই ডিভাইসে সংরক্ষিত হয়েছে।';
       }
     } else {
       let stream = pitchDetector.micStream;
@@ -1082,7 +1419,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           stream = await pitchDetector.startListening();
           requestWakeLock();
-          startMicBtn.innerHTML = "⏹️ রেওয়াজ থামান";
+          startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
           startMicBtn.classList.remove('btn-primary');
           startMicBtn.classList.add('btn-danger');
         } catch (e) {
@@ -1092,7 +1429,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       await window.audioEngine.startRecording(stream);
-      recordBtn.innerHTML = "⏹️ রেকর্ডিং থামান";
+      recordBtn.innerHTML = `${uiIcon('stop')} রেকর্ডিং থামান`;
       recordBtn.classList.add('btn-danger');
     }
   });
@@ -1102,16 +1439,17 @@ document.addEventListener('DOMContentLoaded', () => {
    * ======================================================== */
   let secondsSpent = 0;
   setInterval(() => {
+    if (!pitchDetector.isListening) return;
     secondsSpent++;
     const m = Math.floor(secondsSpent / 60).toString().padStart(2, '0');
     const s = (secondsSpent % 60).toString().padStart(2, '0');
     if (sessionTimerEl) sessionTimerEl.textContent = `${m}:${s}`;
 
-    if (secondsSpent % 60 === 0 && pitchDetector.isListening) {
+    if (secondsSpent % 60 === 0) {
       (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minutes: 1 })
+        body: JSON.stringify({ minutes: 1, ...(activePracticeMeta || {}) })
       }).then(() => loadUserStats()).catch(() => {});
     }
   }, 1000);

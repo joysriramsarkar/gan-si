@@ -1,6 +1,15 @@
 /**
  * Alankar generator: deterministic (seeded) practice patterns. Master Plan Sec 5.
- * Levels: beginner < elementary < intermediate < advanced < expert
+ *
+ * Semantics (v2.1): `noteCount` is the number of swaras in one run and
+ * `steps` is how many runs are produced. Every run starts on a successive
+ * scale step (the first run always starts on সা), so a generated alankar is
+ * a real palta: N consecutive swaras, transposed up the scale run by run.
+ * Motions:
+ *   saral        — straight ascending runs
+ *   bakra        — zigzag inside the run (up two, back one)
+ *   lanka        — seeded jumps across the scale
+ *   punorabritti — each swara of the run doubled
  */
 (function (root) {
   const SWARA_7 = ['সা', 'রে', 'গা', 'মা', 'পা', 'ধা', 'নি', 'সাঁ'];
@@ -16,7 +25,7 @@
 
   function baseScale(raga) {
     if (raga && Array.isArray(raga.aroha_intervals) && raga.aroha_intervals.length >= 4) {
-      const idx = [...new Set(raga.aroha_intervals.map(n => ((n % 12) + 12) % 12))];
+      const idx = [...new Set(raga.aroha_intervals.map(n => ((n % 12) + 12) % 12))].sort((a, b) => a - b);
       return { names: idx.map(i => swaraNameForInterval(i)), intervals: idx };
     }
     return { names: SWARA_7, intervals: INTERVALS_7 };
@@ -27,39 +36,53 @@
     return map[i] ?? `(${i})`;
   }
 
+  // One run of noteCount swaras starting at scale offset `start`.
+  function runNotes(scale, start, noteCount, motion, rand) {
+    const len = Math.max(1, Math.min(noteCount, scale.names.length - start));
+    const notes = [];
+    for (let i = 0; i < len; i++) {
+      const at = Math.min(start + i, scale.names.length - 1);
+      notes.push(at);
+    }
+    if (motion === 'bakra') {
+      // Zigzag: swap inner pairs so the line turns back on itself.
+      for (let i = 1; i + 1 < notes.length; i += 2) {
+        const t = notes[i]; notes[i] = notes[i + 1]; notes[i + 1] = t;
+      }
+    } else if (motion === 'lanka') {
+      // Seeded permutation: deterministic shuffle within the run.
+      for (let i = notes.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = notes[i]; notes[i] = notes[j]; notes[j] = t;
+      }
+    }
+    return notes;
+  }
+
   function generate({ noteCount = 4, motion = 'saral', bpm = 80, raga = null, seed = 42, steps = 8 } = {}) {
     const rand = seededRand(seed);
     const scale = baseScale(raga);
-    const pool = scale.names.filter(n => !['সাঁ'].includes(n) || noteCount >= 7);
-    const notes = [];
-    let pos = 0;
-    for (let s = 0; s < steps; s++) {
-      if (motion === 'saral') {
-        pos = (pos + 1) % pool.length;
-        notes.push(pool.slice(pos, pos + 1 > pool.length ? pool.length : pos + 1).length ? pool[pos % pool.length] : pool[0]);
-      } else if (motion === 'bakra') {
-        pos = (pos + 2) % pool.length;
-        const a = pool[pos % pool.length];
-        const b = pool[Math.max(0, (pos - 1 + pool.length) % pool.length)];
-        notes.push(a, b);
-        if (notes.length >= steps) break;
-      } else if (motion === 'lanka') {
-        const jump = 2 + Math.floor(rand() * 3);
-        pos = (pos + jump) % pool.length;
-        notes.push(pool[pos]);
-      } else { // punorabritti
-        const n = pool[pos % pool.length];
-        notes.push(n, n);
-        pos = (pos + 1) % pool.length;
-        if (notes.length >= steps) break;
+    const n = Math.max(2, Math.min(parseInt(noteCount, 10) || 4, scale.names.length));
+    const runCount = Math.max(1, Math.min(parseInt(steps, 10) || 4, 16));
+    const maxStart = Math.max(0, scale.names.length - n);
+
+    const positions = [];
+    for (let step = 0; step < runCount; step++) {
+      const start = Math.min(step, maxStart);
+      const run = runNotes(scale, start, n, motion, rand);
+      for (const at of run) {
+        positions.push(motion === 'punorabritti' ? [at, at] : [at]);
       }
-      if (notes.length >= steps) break;
     }
-    const seq = notes.slice(0, noteCount >= 7 ? steps : steps);
+
+    const notes = positions.flat().map(at => scale.names[at]);
+    const intervals = positions.flat().map(at => scale.intervals[at]);
     return {
-      title: `স্বয়ংক্রিয় পল্টা (${motion}, ${noteCount} স্বর, ${bpm} BPM)`,
-      notes: seq,
-      intervals: seq.map(n => scale.names.indexOf(n)).filter(i => i >= 0).map(i => scale.intervals[i]),
+      title: `স্বয়ংক্রিয় পল্টা (${motion}, ${n} স্বর × ${runCount} ধাপ, ${bpm} BPM)`,
+      notes,
+      intervals,
+      noteCount: n,
+      steps: runCount,
       bpm, motion, seed
     };
   }

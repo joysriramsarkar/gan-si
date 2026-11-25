@@ -1,16 +1,18 @@
 {
   "name": "gan-si-sur-sadhana",
-  "version": "2.0.0",
+  "version": "2.2.1",
   "description": "Sur Sadhana Pro - Indian Classical Vocal Riyaz and Pitch Trainer (Node.js & Express + SQLite)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
+    "start": "npm run sync:data && node server.js",
+    "dev": "npm run sync:data && node --watch server.js",
     "test": "jest",
     "test:browser": "playwright test",
     "validate:ragas": "node scripts/validate-ragas.cjs",
-    "android:sync": "cap sync android",
-    "android:build": "cap sync android && cd android && gradlew assembleDebug",
+    "validate:alankars": "node scripts/validate-alankars.cjs",
+    "sync:data": "node scripts/sync-music-data.cjs",
+    "android:sync": "npm run sync:data && cap sync android",
+    "android:build": "npm run sync:data && cap sync android && cd android && gradlew.bat assembleDebug",
     "android:open": "cap open android"
   },
   "keywords": [
@@ -25,6 +27,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "dependencies": {
     "@capacitor/android": "^8.6.2",
     "@capacitor/cli": "^8.6.2",

@@ -32,6 +32,8 @@ class PitchDetector {
 
     // Raga Constraint
     this.activeRaga = null;
+    this.practiceDirection = null;
+    this.practiceTargetMidi = null;
 
     // Vocal Range Finder
     this.isTestingRange = false;
@@ -41,6 +43,7 @@ class PitchDetector {
     // Callbacks
     this.onPitchUpdate = null;
     this.onRangeSample = null;
+    this.onSessionStart = null;
 
     // Note constants
     this.noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -69,6 +72,19 @@ class PitchDetector {
 
   setActiveRaga(raga) {
     this.activeRaga = raga;
+  }
+
+  getRootOffset() {
+    return (typeof window !== 'undefined' && window.audioEngine && window.audioEngine.rootOffset) ?? 10;
+  }
+
+  resetSessionStats() {
+    this.totalSamples = 0;
+    this.inTuneSamples = 0;
+    this.pitchHistory = [];
+    this.rawWindow = [];
+    this.lastStableFreq = null;
+    this.smoothedPitch = null;
   }
 
   setTuningSystem(system) {
@@ -102,7 +118,8 @@ class PitchDetector {
     source.connect(this.analyser);
 
     this.isListening = true;
-    this.smoothedPitch = null;
+    this.resetSessionStats();
+    if (this.onSessionStart) this.onSessionStart();
     this.detectLoop();
     return this.micStream;
   }
@@ -191,6 +208,18 @@ class PitchDetector {
     const buffer = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(buffer);
     const rawFreq = PitchDetector.mcleodPitch(buffer, window.audioEngine.ctx.sampleRate);
+    // Sustained silence must clear the detector's short-term memory: the old
+    // lastStableFreq would otherwise octave-anchor the next phrase to the
+    // previous swara instead of the one actually being sung.
+    if (rawFreq <= 0) {
+      this.silentFrames = (this.silentFrames || 0) + 1;
+      if (this.silentFrames >= 25) { // ~0.4s at rAF cadence
+        this.rawWindow = [];
+        this.lastStableFreq = null;
+      }
+    } else {
+      this.silentFrames = 0;
+    }
     // P2-1: octave-fix + median smoothing (fps-independent, confidence-weighted)
     let procFreq = rawFreq;
     if (window.PitchFilters && rawFreq > 0) {
@@ -212,7 +241,7 @@ class PitchDetector {
 
       const freq = this.smoothedPitch;
       const baseA4 = (window.audioEngine && window.audioEngine.baseFreqA4) || 440;
-      const root = (window.audioEngine && window.audioEngine.rootOffset) || 10;
+      const root = this.getRootOffset();
 
       // Calculate Western MIDI note
       const noteNum = 12 * (Math.log(freq / baseA4) / Math.log(2)) + 69;
@@ -378,12 +407,28 @@ class PitchDetector {
     const ctx = this.ctx;
     const w = this.canvas.width;
     const h = this.canvas.height;
+    const css = typeof document !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+    const token = (name, fallback) => (css && css.getPropertyValue(name).trim()) || fallback;
+    const colors = {
+      bg: token('--chart-bg', '#fbfaf7'),
+      grid: token('--chart-grid', '#e4ddd3'),
+      gridActive: token('--chart-grid-active', '#d9b8a6'),
+      label: token('--chart-label', '#756d64'),
+      line: token('--chart-line', '#a44a2a'),
+      target: token('--chart-target', '#2f6f5e'),
+      band: token('--chart-band', 'rgba(47,111,94,.12)')
+    };
 
     ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = colors.bg;
+    ctx.fillRect(0, 0, w, h);
 
     const vals = this.pitchHistory.filter(v => v != null);
     let lo = 45, hi = 75;
-    if (vals.length > 0) {
+    if (Number.isFinite(this.practiceTargetMidi)) {
+      lo = this.practiceTargetMidi - 2;
+      hi = this.practiceTargetMidi + 2;
+    } else if (vals.length > 0) {
       const mn = Math.min(...vals);
       const mx = Math.max(...vals);
       const span = Math.max(mx - mn, 12);
@@ -393,7 +438,7 @@ class PitchDetector {
     const total = Math.max(hi - lo, 1);
     const yOf = (midiVal) => h - ((midiVal - lo) / total) * (h - 16) - 8;
 
-    const root = (window.audioEngine && window.audioEngine.rootOffset) || 10;
+    const root = this.getRootOffset();
     const baseMidi = 48 + root;
     const swaraIntervals = [0, 2, 4, 5, 7, 9, 11, 12];
     const swaraNames = ["সা", "রে", "গা", "মা", "পা", "ধা", "নি", "সাঁ"];
@@ -408,23 +453,42 @@ class PitchDetector {
           isHighlighted = this.activeRaga.allowedIntervals.includes(interval % 12);
         }
 
-        ctx.strokeStyle = isHighlighted ? 'rgba(245, 158, 11, 0.45)' : 'rgba(36, 50, 82, 0.4)';
+        ctx.strokeStyle = isHighlighted ? colors.gridActive : colors.grid;
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
         ctx.stroke();
 
-        ctx.fillStyle = isHighlighted ? '#f59e0b' : '#64748b';
+        ctx.fillStyle = isHighlighted ? colors.line : colors.label;
         ctx.font = '10px "Segoe UI", sans-serif';
         ctx.fillText(swaraNames[idx], 8, y - 3);
       }
     });
 
+    // Guided target line + ±12 cents tolerance band
+    if (Number.isFinite(this.practiceTargetMidi)) {
+      const targetY = yOf(this.practiceTargetMidi);
+      const band = (12 / 100) * ((h - 16) / Math.max(hi - lo, 1));
+      ctx.fillStyle = colors.band;
+      ctx.fillRect(0, targetY - band, w, band * 2);
+      ctx.strokeStyle = colors.target;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, targetY);
+      ctx.lineTo(w, targetY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = colors.target;
+      ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.fillText('লক্ষ্য', w - 42, targetY - 5);
+    }
+
     // Pitch Trail
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#f59e0b';
+    ctx.strokeStyle = colors.line;
     ctx.beginPath();
 
     const step = w / this.maxHistory;
