@@ -132,6 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const saptakBadge = document.getElementById('saptakBadge');
   const pitchHero = document.getElementById('pitchHero');
   const swaraMatrix = document.getElementById('swaraMatrix');
+  const pitchCanvas = document.getElementById('pitchCanvas');
+  let pitchTrail = null;
   // Override pitch detector's drawGraph to use advanced trail.
   pitchDetector.drawGraph = () => {
     if (pitchTrail) pitchTrail.draw();
@@ -292,26 +294,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize Canvas + advanced pitch trail
+  // Initialize Canvas + advanced pitch trail (340px: 25 swara lines fit).
   if (pitchCanvas) {
     pitchDetector.setCanvas(pitchCanvas);
     const resizeCanvas = () => {
       const w = pitchCanvas.parentElement ? pitchCanvas.parentElement.clientWidth : 0;
       pitchCanvas.width = w > 50 ? w : 480;
-      pitchCanvas.height = 180;
+      pitchCanvas.height = 340;
+      if (pitchTrail) pitchTrail.resize();
     };
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
     // Create advanced trail.
     if (window.PitchTrail) {
-      const trail = window.PitchTrail.create(pitchCanvas, { height: 180 });
+      const trail = window.PitchTrail.create(pitchCanvas, { height: 340 });
       pitchTrail = trail;
       // Hook into pitch updates via a global bridge so the section-8 handler
       // (which is assigned later) can push samples without being overwritten.
       window.__pitchTrail = trail;
       trail.start();
-      // Resize now that trail exists.
       resizeCanvas();
     }
   }

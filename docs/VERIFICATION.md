@@ -24,9 +24,9 @@ npm run test:browser      # 16 Playwright test
 node scripts/smoke.cjs    # isolated temporary DB/uploads
 node scripts/smoke-auth.cjs
 ```
-Fresh Lighthouse (2026-11-25, v2.2.1): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+Fresh Lighthouse (2026-11-25, v2.3.1): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
 
 ## Bengali digit regression contract
 - DOM text, dynamic mutation, native select option label, `title`, `aria-label`, `placeholder` visible digit বাংলায় দেখাবে।
 - `input/select` value, `data-*`, IDs, URL, API payload ASCII থাকবে।
-- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v8 migration test হয়।
+- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v9 migration test হয়।

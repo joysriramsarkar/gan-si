@@ -1,7 +1,26 @@
-/* Gan-si Pitch Trail v3: high-resolution, target-locked, DPR-aware. */
+/* Gan-si Pitch Trail: fixed two-octave swara grid, DPR-aware, target-locked. */
 (function (root) {
   const HISTORY_MS = 60000;
   const SAMPLE_MS = 50;
+  const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  const NOTE_STRINGS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const SARGAM_SHORT = ['সা', 'রে♭', 'রে', 'গা♭', 'গা', 'মা', 'মা♯', 'পা', 'ধা♭', 'ধা', 'নি♭', 'নি'];
+  // Fixed layout: no auto y-range. The full Sa-to-Sa two-octave grid always
+  // fills the canvas between top padding and the time axis, so there is no
+  // empty top/bottom band and lines never cluster.
+  const GRID_LEFT = 86;
+  const GRID_TOP = 12;
+  const GRID_BOTTOM = 28;
+
+  function toBn(value) {
+    return String(value ?? '').replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
+  }
+
+  function westernName(midi) {
+    const idx = ((midi % 12) + 12) % 12;
+    const octave = Math.floor(midi / 12) - 1;
+    return NOTE_STRINGS[idx] + toBn(octave);
+  }
 
   function createPitchTrail(canvas, options) {
     const ctx = canvas.getContext('2d');
@@ -17,7 +36,7 @@
     function resize() {
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.parentElement ? canvas.parentElement.clientWidth : canvas.width;
-      const h = opts.height || 180;
+      const h = opts.height || 340;
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
       canvas.style.width = w + 'px';
@@ -65,7 +84,15 @@
 
     function yOf(midiVal, lo, hi, h) {
       const total = Math.max(hi - lo, 1);
-      return h - ((midiVal - lo) / total) * (h - 16) - 8;
+      const usable = Math.max(1, h - GRID_TOP - GRID_BOTTOM);
+      const y = GRID_TOP + (1 - (midiVal - lo) / total) * usable;
+      // Clamp so an off-grid pitch still points at the nearest edge swara.
+      return Math.min(h - GRID_BOTTOM, Math.max(GRID_TOP, y));
+    }
+
+    function xOf(t, start, windowMs, w) {
+      const span = Math.max(1, w - GRID_LEFT - 8);
+      return GRID_LEFT + ((t - start) / windowMs) * span;
     }
 
     function draw() {
@@ -95,73 +122,79 @@
       const start = end - windowMs;
       const visible = history.filter(s => s.t >= start && s.t <= end);
 
-      // Auto range.
-      let lo = baseMidi - 6, hi = baseMidi + 6;
-      if (targetMidi != null) { lo = targetMidi - 2; hi = targetMidi + 2; }
-      else if (visible.length) {
-        const mids = visible.map(s => s.midi);
-        const mn = Math.min(...mids), mx = Math.max(...mids);
-        const span = Math.max(mx - mn, 6);
-        lo = Math.max(20, mn - span * 0.3);
-        hi = Math.min(90, mx + span * 0.3);
-      }
-      const total = Math.max(hi - lo, 1);
+      // Fixed two-octave range: Mandra Sa .. Tara Sa (baseMidi is the active
+      // Sa). Never auto-zoom vertically, so all 25 swara lines are visible
+      // with equal spacing top-to-bottom.
+      const lo = baseMidi - 12;
+      const hi = baseMidi + 12;
+      const total = hi - lo;
 
-      // Grid: swaras.
-      const root = (window.audioEngine && window.audioEngine.rootOffset) || (baseMidi % 12);
-      const base = Math.floor(baseMidi / 12) * 12;
-      const swaraIntervals = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
-      const swaraNames = ['সা', 'রে♭', 'রে', 'গা♭', 'গা', 'মা', 'মা♯', 'পা', 'ধা♭', 'ধা', 'নি♭', 'নি'];
+      // Grid: every swara in two octaves, with both names visible.
+      // Left gutter (GRID_LEFT) holds Bengali sargam + western note (A-G).
       const activeRaga = (window.pitchDetector && window.pitchDetector.activeRaga) || null;
       ctx.lineWidth = 1;
-      for (let i = 0; i < 12; i++) {
-        const midiVal = base + i;
+      for (let offset = -12; offset <= 12; offset++) {
+        const midiVal = baseMidi + offset;
+        const idx = ((offset % 12) + 12) % 12;
         const y = yOf(midiVal, lo, hi, h);
-        if (y < 0 || y > h) continue;
-        const allowed = activeRaga && activeRaga.allowedIntervals ? activeRaga.allowedIntervals.includes(i) : (i === 0 || i === 7);
+        const isSa = idx === 0;
+        const allowed = activeRaga && activeRaga.allowedIntervals
+          ? activeRaga.allowedIntervals.includes(idx)
+          : (idx === 0 || idx === 7);
         ctx.strokeStyle = allowed ? colors.gridActive : colors.grid;
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
+        ctx.moveTo(GRID_LEFT, y);
+        ctx.lineTo(w - 4, y);
         ctx.stroke();
-        ctx.fillStyle = allowed ? colors.label : 'rgba(117,109,100,.45)';
+        // Saptak tag for the three Sa lines.
+        const saptak = offset === -12 ? 'মন্দ্র ' : offset === 0 ? 'মধ্য ' : offset === 12 ? 'তারা ' : '';
+        const sargam = offset === 12 ? 'সাঁ' : SARGAM_SHORT[idx];
+        ctx.fillStyle = isSa ? colors.line : allowed ? colors.label : 'rgba(117,109,100,.55)';
+        ctx.font = (isSa ? 'bold 11px' : '11px') + ' "Segoe UI", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(saptak + sargam, 4, y + 4);
+        ctx.fillStyle = allowed ? colors.label : 'rgba(117,109,100,.55)';
         ctx.font = '10px "Segoe UI", sans-serif';
-        ctx.fillText(swaraNames[i], 6, y - 2);
+        ctx.fillText(westernName(midiVal), Math.min(GRID_LEFT - 30, 46), y + 4);
       }
 
       // Target band.
       if (targetMidi != null) {
         const ty = yOf(targetMidi, lo, hi, h);
-        const bandPx = (targetTolerance / 100) * ((h - 16) / total) * 2;
+        const usable = Math.max(1, h - GRID_TOP - GRID_BOTTOM);
+        const bandPx = (2 * targetTolerance / 100) * (usable / total);
         ctx.fillStyle = colors.band;
-        ctx.fillRect(0, ty - bandPx / 2, w, bandPx);
+        ctx.fillRect(GRID_LEFT, ty - bandPx / 2, w - GRID_LEFT, bandPx);
         ctx.strokeStyle = colors.target;
         ctx.lineWidth = 1.5;
         ctx.setLineDash([6, 4]);
         ctx.beginPath();
-        ctx.moveTo(0, ty);
-        ctx.lineTo(w, ty);
+        ctx.moveTo(GRID_LEFT, ty);
+        ctx.lineTo(w - 4, ty);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillStyle = colors.target;
-        ctx.font = 'bold 10px "Segoe UI", sans-serif';
-        ctx.fillText('লক্ষ্য', w - 44, ty - 6);
+        ctx.font = 'bold 11px "Segoe UI", sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('লক্ষ্য ' + toBn(targetTolerance) + ' সেন্ট', w - 6, ty - 6);
+        ctx.textAlign = 'left';
       }
 
-      // Time axis (seconds ago).
+      // Time axis (seconds ago), Bengali digits.
       ctx.fillStyle = colors.label;
-      ctx.font = '9px "Segoe UI", sans-serif';
+      ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.textAlign = 'left';
       const ticks = 6;
       for (let i = 0; i <= ticks; i++) {
         const tSec = (windowMs / 1000) * (i / ticks);
-        const x = w - (tSec / (windowMs / 1000)) * w;
-        ctx.fillText(tSec.toFixed(0) + 's', x + 2, h - 2);
+        const x = xOf(start + (tSec / (windowMs / 1000)) * windowMs, start, windowMs, w);
+        ctx.fillText(toBn(Math.round(tSec)) + 'সে', Math.min(w - 34, x + 2), h - 8);
         if (i > 0) {
           ctx.strokeStyle = colors.grid;
           ctx.lineWidth = 0.5;
           ctx.beginPath();
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, h);
+          ctx.moveTo(x, GRID_TOP);
+          ctx.lineTo(x, h - GRID_BOTTOM);
           ctx.stroke();
         }
       }
@@ -177,7 +210,7 @@
           ctx.lineJoin = 'round';
           ctx.beginPath();
           seg.forEach((p, i) => {
-            const x = ((p.t - start) / windowMs) * w;
+            const x = xOf(p.t, start, windowMs, w);
             const y = yOf(p.midi, lo, hi, h);
             if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           });
@@ -201,7 +234,7 @@
 
         // Dots at sample points.
         for (const s of visible) {
-          const x = ((s.t - start) / windowMs) * w;
+          const x = xOf(s.t, start, windowMs, w);
           const y = yOf(s.midi, lo, hi, h);
           ctx.fillStyle = s.inTune ? colors.inTune : colors.outTune;
           ctx.beginPath();
@@ -210,19 +243,31 @@
         }
       }
 
-      // Stats overlay.
+      // Stats overlay: small, top-right, Bengali digits.
       const st = stats();
       if (st) {
+        const stdText = toBn((st.stdCents / 100).toFixed(2));
         const lines = [
-          `নমুনা: ${st.count}  •  নিখুঁত: ${st.accuracy}%`,
-          `cents: ${st.minCents} … ${st.maxCents}  •  σ≈${st.stdCents / 100} ST`,
-          `সময়: ${st.spanSec}s`
+          'নমুনা ' + toBn(st.count) + ' • নিখুঁত ' + toBn(st.accuracy) + '%',
+          'সেন্ট ' + toBn(st.minCents) + '…+' + toBn(st.maxCents) + ' • σ≈' + stdText + ' ST',
+          'সময় ' + toBn(st.spanSec) + 'সে'
         ];
-        ctx.fillStyle = 'rgba(0,0,0,.35)';
-        ctx.fillRect(6, 6, 230, 44);
-        ctx.fillStyle = '#fff';
         ctx.font = '10px "Segoe UI", sans-serif';
-        lines.forEach((l, i) => ctx.fillText(l, 12, 20 + i * 13));
+        const width = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 18;
+        const height = 42;
+        const ox = w - width - 8;
+        const oy = 6;
+        ctx.fillStyle = 'rgba(0,0,0,.38)';
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(ox, oy, width, height, 8);
+          ctx.fill();
+        } else {
+          ctx.fillRect(ox, oy, width, height);
+        }
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        lines.forEach((l, i) => ctx.fillText(l, ox + 9, oy + 15 + i * 13));
       }
 
       // Empty state.
@@ -230,7 +275,7 @@
         ctx.fillStyle = colors.label;
         ctx.font = '12px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('মাইক্রোফোন চালু করে গাইলে এখানে পিচ-ট্রেইল দেখা যাবে', w / 2, h / 2);
+        ctx.fillText('মাইক্রোফোন চালু করে গাইলে এখানে পিচ-ট্রেইল দেখা যাবে', (GRID_LEFT + w) / 2, h / 2);
         ctx.textAlign = 'left';
       }
     }
