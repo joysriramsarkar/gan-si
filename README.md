@@ -6,6 +6,16 @@
 
 ## 🌟 নতুন ও উন্নত বৈশিষ্ট্যসমূহ (Next-Gen Features)
 
+### v2.3 — উন্নত পিচ ট্রেইল গ্রাফ (Advanced Pitch Trail Graph)
+- **📈 ট্রেন্ড মাইক্রো-গ্রাফ:** প্রতি ৫০ms একটি নমুনা নেওয়া হয়; ৬০ সেকেন্ড পর্যন্ত ট্রেন্ড দেখা যায়।
+- **🎯 টার্গেট লক:** গাইডেড প্র্যাকটিসে টার্গেট-স্বরের চারপাশের ±১২ cents tolerance band সবুজ অঞ্চলে দেখানো হয়; বাইরে গেলে লাল সতর্কতা।
+- **🟢/🔴 টিউন ইন্ডিকেটর:** in-tune হলে সবুজ, out-of-tune হলে লাল রঙে গ্রাফ আঁকা হয়।
+- **🧭 স্বর-গ্রিড:** রাগ/স্কেল অনুযায়ী স্বর-লাইন হাইলাইট; কমল/তীব্র স্বর স্পষ্ট।
+- **📱 Responsive canvas:** mobile-এ ১০০% width + DPR-aware sharp rendering (retina smooth)।
+- **🔍 Scroll/Zoom:** মাউস-হুইল zoom, drag pan — পুরো ট্রেন্ড explore করা যায়।
+- **📊 Stats overlay:** accuracy, min/max cents, stability (std dev) গ্রাফের উপরে overlay করা।
+- **⚡ Perf:** rAF-based redraw, lightweight canvas (no chart library)।
+
 ### v2.2.2 — Bengali digits ও cache fixes
 - **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz, date এবং select option label; ASCII digit দৃশ্যমান হয় না, form/API value ASCII-ই থাকে।
 - **🔄 SW v8 cache repair:** পুরোনো cached HTML-এ নতুন localization script না থাকলেও নতুন SW installation সব App Shell asset cache-diplোম করে reload নিশ্চিত করে।

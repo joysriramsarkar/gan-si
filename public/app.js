@@ -132,7 +132,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const saptakBadge = document.getElementById('saptakBadge');
   const pitchHero = document.getElementById('pitchHero');
   const swaraMatrix = document.getElementById('swaraMatrix');
-  const pitchCanvas = document.getElementById('pitchCanvas');
+  // Override pitch detector's drawGraph to use advanced trail.
+  pitchDetector.drawGraph = () => {
+    if (pitchTrail) pitchTrail.draw();
+  };
   const apaswaraAlert = document.getElementById('apaswaraAlert');
   const activeRagaPill = document.getElementById('activeRagaPill');
   const activeRagaName = document.getElementById('activeRagaName');
@@ -289,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize Canvas
+  // Initialize Canvas + advanced pitch trail
   if (pitchCanvas) {
     pitchDetector.setCanvas(pitchCanvas);
     const resizeCanvas = () => {
@@ -299,6 +302,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+
+    // Create advanced trail.
+    if (window.PitchTrail) {
+      const trail = window.PitchTrail.create(pitchCanvas, { height: 180 });
+      pitchTrail = trail;
+      // Hook into pitch updates via a global bridge so the section-8 handler
+      // (which is assigned later) can push samples without being overwritten.
+      window.__pitchTrail = trail;
+      trail.start();
+      // Resize now that trail exists.
+      resizeCanvas();
+    }
   }
 
   /* ========================================================
@@ -428,6 +443,14 @@ document.addEventListener('DOMContentLoaded', () => {
   pitchDetector.onPitchUpdate = (data) => {
     document.querySelectorAll('.swara-chip').forEach(c => c.classList.remove('active-pitch'));
     handleRagaLearningPitch(data);
+
+    if (window.__pitchTrail) {
+      if (data) {
+        window.__pitchTrail.push({ midi: data.noteNum, inTune: data.isInTune, cents: data.cents });
+        window.__pitchTrail.setTarget(pitchDetector.practiceTargetMidi, 12);
+      }
+      window.__pitchTrail.setBaseMidi(48 + pitchDetector.getRootOffset());
+    }
 
     if (!data) {
       sargamDisplay.classList.remove('active', 'in-tune');

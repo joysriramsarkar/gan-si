@@ -26,6 +26,7 @@ const APP_SHELL = [
   '/js/ui/auth.js',
   '/js/ui/numbers.js',
   '/numbers-repair.js',
+  '/js/ui/pitch-trail.js',
   '/js/ui/music-data.js',
   '/js/ui/progress.js',
   '/icon-192.png',
