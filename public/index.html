@@ -157,7 +157,16 @@
 
           <!-- Live Pitch Trail Canvas -->
           <div class="canvas-wrapper">
-            <canvas id="pitchCanvas"></canvas>
+            <canvas id="pitchCanvas" role="img" aria-label="দুই সপ্তকের পিচ ট্রেইল গ্রাফ — সবুজ সঠিক সুর, হলুদাভ কাছাকাছি, লালচে সুরের বাইরে"></canvas>
+            <div class="pitch-trail-toolbar" role="group" aria-label="পিচ গ্রাফ নিয়ন্ত্রণ">
+              <span class="pitch-trail-caption">সময় উইন্ডো</span>
+              <button type="button" class="btn-outline trail-window-btn" data-trail-window="15000">১৫ সে</button>
+              <button type="button" class="btn-outline trail-window-btn" data-trail-window="30000">৩০ সে</button>
+              <button type="button" class="btn-outline trail-window-btn active" data-trail-window="60000">৬০ সে</button>
+              <button type="button" class="btn-outline" id="trailResetBtn">ভিউ রিসেট</button>
+              <button type="button" class="btn-outline" id="trailClearBtn">ট্রেইল মুছুন</button>
+              <span class="pitch-trail-hint">স্ক্রল: জুম · টেনে ধরে: প্যান · ডাবল-ক্লিক: রিসেট · কার্সর রাখলে: স্বর ও সেন্ট পড়ুন</span>
+            </div>
           </div>
 
           <!-- Swara Matrix of current scale -->

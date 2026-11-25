@@ -294,13 +294,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize Canvas + advanced pitch trail (340px: 25 swara lines fit).
+  // Initialize Canvas + advanced pitch trail (360px: 25 swara lines fit).
   if (pitchCanvas) {
     pitchDetector.setCanvas(pitchCanvas);
     const resizeCanvas = () => {
       const w = pitchCanvas.parentElement ? pitchCanvas.parentElement.clientWidth : 0;
       pitchCanvas.width = w > 50 ? w : 480;
-      pitchCanvas.height = 340;
+      pitchCanvas.height = 360;
       if (pitchTrail) pitchTrail.resize();
     };
     resizeCanvas();
@@ -308,13 +308,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Create advanced trail.
     if (window.PitchTrail) {
-      const trail = window.PitchTrail.create(pitchCanvas, { height: 340 });
+      const trail = window.PitchTrail.create(pitchCanvas, { height: 360 });
       pitchTrail = trail;
       // Hook into pitch updates via a global bridge so the section-8 handler
       // (which is assigned later) can push samples without being overwritten.
       window.__pitchTrail = trail;
       trail.start();
       resizeCanvas();
+      // Graph toolbar: time window / reset view / clear trail.
+      document.querySelectorAll('.trail-window-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.trail-window-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          trail.setWindow(Number(btn.dataset.trailWindow) || 60000);
+        });
+      });
+      const trailResetBtn = document.getElementById('trailResetBtn');
+      if (trailResetBtn) trailResetBtn.addEventListener('click', () => trail.resetView());
+      const trailClearBtn = document.getElementById('trailClearBtn');
+      if (trailClearBtn) trailClearBtn.addEventListener('click', () => trail.clear());
     }
   }
 
@@ -452,6 +464,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data) {
         window.__pitchTrail.push({ midi: data.noteNum, inTune: data.isInTune, cents: data.cents });
         window.__pitchTrail.setTarget(pitchDetector.practiceTargetMidi, 12);
+      } else {
+        window.__pitchTrail.push({ midi: null }); // silence: break the line
       }
       window.__pitchTrail.setBaseMidi(48 + pitchDetector.getRootOffset());
     }

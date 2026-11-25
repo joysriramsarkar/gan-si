@@ -1,5 +1,5 @@
-/* Gan-si SW v10: network-first app shell; public data SWR; private APIs never cached. */
-const CACHE_VERSION = 'sur-sadhana-v10';
+/* Gan-si SW v11: network-first app shell; public data SWR; private APIs never cached. */
+const CACHE_VERSION = 'sur-sadhana-v11';
 const APP_SHELL = [
   '/',
   '/index.html',

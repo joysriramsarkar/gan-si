@@ -31,12 +31,20 @@
   --shadow-1: 0 1px 2px rgba(41, 39, 35, 0.05), 0 6px 18px rgba(41, 39, 35, 0.04);
   --shadow-2: 0 10px 32px rgba(41, 39, 35, 0.08);
   --chart-bg: #fbfaf7;
+  --chart-gutter: #f3efe8;
   --chart-grid: #e4ddd3;
   --chart-grid-active: #d9b8a6;
   --chart-label: #756d64;
   --chart-line: #a44a2a;
   --chart-target: #2f6f5e;
   --chart-band: rgba(47, 111, 94, 0.12);
+  --chart-in-tune: #2f6f5e;
+  --chart-near: #b7791f;
+  --chart-out-tune: #a63d40;
+  --chart-card-bg: rgba(255, 255, 255, 0.94);
+  --chart-card-text: #292723;
+  --chart-card-sub: #625c55;
+  --chart-card-border: #ded6cc;
 }
 
 [data-theme="gold"] {
@@ -115,10 +123,18 @@
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 22px rgba(0, 0, 0, 0.16);
   --shadow-2: 0 12px 34px rgba(0, 0, 0, 0.28);
   --chart-bg: #171b1e;
+  --chart-gutter: #1d2226;
   --chart-grid: #30373d;
   --chart-grid-active: #654635;
   --chart-label: #b8b2aa;
   --chart-line: #e0a17a;
   --chart-target: #83c6b2;
   --chart-band: rgba(131, 198, 178, 0.12);
+  --chart-in-tune: #83c6b2;
+  --chart-near: #e3b34e;
+  --chart-out-tune: #f0a3a5;
+  --chart-card-bg: rgba(27, 31, 34, 0.94);
+  --chart-card-text: #f4f1ec;
+  --chart-card-sub: #b8b2aa;
+  --chart-card-border: #343a40;
 }
