@@ -420,6 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
       stopRagaLesson(false);
       stopGuidedPractice(false);
       pitchDetector.stopListening();
+      if (window.__pitchTrail) window.__pitchTrail.stop(); // freeze graph
       releaseWakeLock();
       startMicBtn.innerHTML = `${uiIcon('mic')} রেওয়াজ শুরু করুন`;
       startMicBtn.classList.remove('btn-danger');
@@ -433,6 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       await pitchDetector.startListening();
+      if (window.__pitchTrail) window.__pitchTrail.start(); // resume scrolling
       requestWakeLock();
       startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
       startMicBtn.classList.remove('btn-primary');

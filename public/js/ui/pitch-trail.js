@@ -29,6 +29,7 @@
     let view = { zoom: 1, pan: 0, drag: false, lastX: 0 };
     let running = false;
     let raf = null;
+    let frozenEnd = null; // set on stop(): time window freezes, graph must not scroll
     let targetMidi = null;
     let targetTolerance = 12;
     let baseMidi = 60;
@@ -45,11 +46,17 @@
     }
 
     function push(sample) {
+      if (!running) start(); // mic started without explicit trail.start() (guided etc.)
       const now = Date.now();
       history.push({ t: now, midi: sample.midi, inTune: !!sample.inTune, cents: sample.cents || 0 });
       // Trim to 60s.
       const cutoff = now - HISTORY_MS;
       while (history.length && history[0].t < cutoff) history.shift();
+    }
+
+    function clear() {
+      history.length = 0;
+      draw();
     }
 
     function setTarget(midi, tolerance) {
@@ -118,7 +125,7 @@
 
       const now = Date.now();
       const windowMs = HISTORY_MS / view.zoom;
-      const end = now - view.pan;
+      const end = (frozenEnd != null ? frozenEnd : now) - view.pan;
       const start = end - windowMs;
       const visible = history.filter(s => s.t >= start && s.t <= end);
 
@@ -270,6 +277,27 @@
         lines.forEach((l, i) => ctx.fillText(l, ox + 9, oy + 15 + i * 13));
       }
 
+      // Frozen badge (practice stopped): trail no longer scrolls.
+      if (frozenEnd != null) {
+        const label = 'রেওয়াজ বন্ধ — শেষের ট্রেইল';
+        ctx.font = 'bold 11px "Segoe UI", sans-serif';
+        const width = ctx.measureText(label).width + 18;
+        const height = 20;
+        const ox = GRID_LEFT + 8;
+        const oy = GRID_TOP + 2;
+        ctx.fillStyle = 'rgba(0,0,0,.45)';
+        if (ctx.roundRect) {
+          ctx.beginPath();
+          ctx.roundRect(ox, oy, width, height, 10);
+          ctx.fill();
+        } else {
+          ctx.fillRect(ox, oy, width, height);
+        }
+        ctx.fillStyle = '#fff';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, ox + 9, oy + 14);
+      }
+
       // Empty state.
       if (!visible.length) {
         ctx.fillStyle = colors.label;
@@ -288,14 +316,18 @@
 
     function start() {
       if (running) return;
+      frozenEnd = null;
       running = true;
       resize();
       loop();
     }
     function stop() {
+      if (!running) { draw(); return; }
+      frozenEnd = Date.now();
       running = false;
       if (raf) cancelAnimationFrame(raf);
       raf = null;
+      draw(); // freeze frame: static grid + last trail
     }
 
     // Zoom / pan.
@@ -316,8 +348,9 @@
     window.addEventListener('resize', resize);
 
     return {
-      push, setTarget, setBaseMidi, start, stop, resize, draw, stats,
-      history: () => history.slice()
+      push, setTarget, setBaseMidi, start, stop, clear, resize, draw, stats,
+      history: () => history.slice(),
+      isLive: () => running
     };
   }
 

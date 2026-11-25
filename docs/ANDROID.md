@@ -1,6 +1,6 @@
 # Android App — Build ও Device Test Report
 
-> **Status (2026-11-25, এই মেশিনে যাচাইকৃত):** ✅ v2.3.1 (versionCode 8) `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (5,387,809 bytes ≈ 5.14MB)
+> **Status (2026-11-25, এই মেশিনে যাচাইকৃত):** ✅ v2.3.2 (versionCode 9) `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (5,388,229 bytes ≈ 5.14MB)
 
 ## পরিবেশ (যাচাইকৃত)
 - Java: Temurin 21.0.11 (LTS)
@@ -23,7 +23,7 @@ npm run android:build
 - Minimalist Material UI: warm paper surfaces, clay accent, soft elevation, reusable SVG icons
 - Sticky pill tabs, mobile-safe header, stacked recording rows, contained modals
 - Default Paper theme + Gold/Sunset/Wood/optional Dark; theme-aware pitch canvas
-- SW v9 network-first + one-time migration reload: bundled raga/alankar/theory offline fallback; stats/users/recordings কখনো cache নয়
+- SW v10 network-first + one-time migration reload: bundled raga/alankar/theory offline fallback; stats/users/recordings কখনো cache নয়
 - `npm run sync:data` canonical `data/*.json` → `public/data/*.json`; Android build স্বয়ংক্রিয়ভাবে sync করে
 - Accessibility: zoom, labels, keyboard tabs, contrast
 - Build-এর আগে `npx cap sync android` চালানো বাধ্যতামূলক
