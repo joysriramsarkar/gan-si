@@ -1,6 +1,6 @@
 # Android App — Build ও Device Test Report
 
-> **Status (2026-11-24, এই মেশিনে যাচাইকৃত):** ✅ `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (~5.1MB)
+> **Status (2026-11-25, এই মেশিনে যাচাইকৃত):** ✅ v2.2.1 (versionCode 5) `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (5,380,528 bytes ≈ 5.13MB)
 
 ## পরিবেশ (যাচাইকৃত)
 - Java: Temurin 21.0.11 (LTS)
@@ -10,9 +10,7 @@
 ## Build (পুনরাবৃত্তি)
 ```powershell
 npm install
-npx cap sync android
-cd android
-.\gradlew.bat assembleDebug
+npm run android:build
 # APK: android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
@@ -20,6 +18,15 @@ cd android
 - `AndroidManifest.xml`: `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS` + microphone feature (WebView `getUserMedia`-এর জন্য বাধ্যতামূলক)
 - `MainActivity.java`: `BridgeWebChromeClient.onPermissionRequest` override → `request.grant(...)`, নইলে permission request নীরবে deny হয়
 - Icons/splash: `@capacitor/assets` দিয়ে `assets/icon.png` + `assets/splash.png` থেকে 87 ফাইল generated
+
+## v2.2 Web Assets
+- Minimalist Material UI: warm paper surfaces, clay accent, soft elevation, reusable SVG icons
+- Sticky pill tabs, mobile-safe header, stacked recording rows, contained modals
+- Default Paper theme + Gold/Sunset/Wood/optional Dark; theme-aware pitch canvas
+- SW v7 network-first: bundled raga/alankar/theory offline fallback; stats/users/recordings কখনো cache নয়
+- `npm run sync:data` canonical `data/*.json` → `public/data/*.json`; Android build স্বয়ংক্রিয়ভাবে sync করে
+- Accessibility: zoom, labels, keyboard tabs, contrast
+- Build-এর আগে `npx cap sync android` চালানো বাধ্যতামূলক
 
 ## Device পরীক্ষা (AVD `gansi` — এই মেশিনে যাচাইকৃত ✅)
 ```powershell
@@ -29,13 +36,16 @@ adb shell monkey -p com.gansi.sursadhana -c android.intent.category.LAUNCHER 1
 ```
 | পরীক্ষা | ফলাফল |
 |---|---|
-| APK install | ✅ Success |
-| Launch + render | ✅ MainActivity focused; “সুর সাধনা Pro” UI স্ক্রিনশটে নিশ্চিত (timer চলছে, ১০ ট্যাব, pitch monitor) |
-| Mic start (CDP: `#startMicBtn` click) | ✅ বাটন → “⏹️ রেওয়াজ থামান”, `pitchDetector.isListening === true` (WebView permission grant কাজ করে) |
-| Pitch value | ⚠️ এমুলেটরে virtual mic নীরব → সারগাম `--` (expected; আসল ডিভাইসে যাচাই করতে হবে) |
-| Tanpura on/off (CDP) | ✅ `isTanpuraPlaying true→false`, বাটন toggle সঠিক |
-| JS errors | ✅ আমাদের WebView প্রসেসে কোনো Uncaught নেই (শুধু emulator-GMS noise) |
-| `/api/*` | ⚠️ Native-এ relative API URL → `https://localhost/api/...` serve হয় না (JSON parse fail, app gracefully handle করে) — production-এ backend deploy করে `server.url` বসান |
+| APK install | ✅ Success (clean uninstall + install) |
+| Launch + render | ✅ MainActivity focused; ১০ ট্যাব ও v2.1 assets load |
+| Bundled offline data | ✅ Backend ছাড়াই ১০টি রাগ card load (`RAGA_CARDS=10`) |
+| Raga Learning UI | ✅ `RagaLearning=true`, Bhoopali lesson ready/visible |
+| Mic start (CDP) | ✅ `pitchDetector.isListening === true` |
+| Backup default | ✅ `cloudBackupToggle.checked === false` |
+| Pitch value | ⚠️ এমুলেটরে virtual mic নীরব → আসল ডিভাইসে যাচাই করতে হবে |
+| Tanpura on/off (CDP) | ✅ আগের v2.0 device test-এ `true→false` verified |
+| JS errors | ✅ আমাদের WebView প্রসেসে কোনো Uncaught নেই; শুধু Capacitor safe-area/GMS noise |
+| `/api/*` | ⚠️ Native-এ relative API URL serve হয় না; production backend লাগবে। Bundled fallback থাকায় content offline খোলে |
 
 - [x] APK install সফল
 - [x] App launch — “সুর সাধনা” UI render (screenshot দিয়ে নিশ্চিত)
@@ -43,4 +53,4 @@ adb shell monkey -p com.gansi.sursadhana -c android.intent.category.LAUNCHER 1
 - [ ] Bluetooth latency / background-audio / আসল mic-এ pitch: আসল ডিভাইসে মাপতে হবে (এমুলেটরে অর্থহীন)
 
 ## API নোট
-Native WebView-এ relative `/api/*` URL কাজ করে না — production-এ backend deploy করে `capacitor.config.json`-এ `server.url` বসান, অথবা PWA হিসেবে same-origin serve করুন। Offline-এ tanpura/harmonium/tabla/pitch/ear-training চলে; stats/theory/recording-server সংযোগ ফিরলে sync হয়।
+Native WebView-এ relative `/api/*` URL কাজ করে না — production-এ backend deploy করে `capacitor.config.json`-এ `server.url` বসান, অথবা PWA হিসেবে same-origin serve করুন। Offline-এ tanpura/harmonium/tabla/pitch/ear-training এবং bundled raga/alankar/theory content চলে; stats/account/recording-server সংযোগ ফিরলে sync হয়।

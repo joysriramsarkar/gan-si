@@ -708,12 +708,12 @@ class AudioEngine {
       micSource.connect(this.recordDest);
     }
 
-    const options = { mimeType: 'audio/webm' };
-    if (!MediaRecorder.isTypeSupported('audio/webm')) {
-      options.mimeType = '';
-    }
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
+    const mimeType = candidates.find(type => MediaRecorder.isTypeSupported(type)) || '';
+    const options = mimeType ? { mimeType } : {};
 
     this.mediaRecorder = new MediaRecorder(this.recordDest.stream, options);
+    this.recordingMimeType = this.mediaRecorder.mimeType || mimeType || 'audio/webm';
 
     this.mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) {
@@ -733,7 +733,7 @@ class AudioEngine {
       }
 
       this.mediaRecorder.onstop = () => {
-        const blob = new Blob(this.recordedChunks, { type: 'audio/webm' });
+        const blob = new Blob(this.recordedChunks, { type: this.recordingMimeType || 'audio/webm' });
         this.isRecording = false;
         resolve(blob);
       };

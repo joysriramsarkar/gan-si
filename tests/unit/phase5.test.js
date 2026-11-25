@@ -37,13 +37,13 @@ describe('auth middleware defaults + users flow', () => {
     const os = require('os');
     const path = require('path');
     const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gansi-')), 'u.sqlite');
-    const { openDb, migrate } = require('../../src/server/db');
+    const { openDb, migrate, hashToken } = require('../../src/server/db');
     const db = openDb(tmp);
     migrate(db);
     const r = db.prepare('INSERT INTO users(username) VALUES (?)').run('tester');
     const uid = Number(r.lastInsertRowid);
-    db.prepare('INSERT INTO api_tokens(token, user_id) VALUES (?,?)').run('tok-123', uid);
-    const row = db.prepare('SELECT user_id FROM api_tokens WHERE token=?').get('tok-123');
+    db.prepare('INSERT INTO api_tokens(token_hash, user_id) VALUES (?,?)').run(hashToken('tok-123'), uid);
+    const row = db.prepare('SELECT user_id FROM api_tokens WHERE token_hash=?').get(hashToken('tok-123'));
     expect(row.user_id).toBe(uid);
     db.close();
   });

@@ -2,22 +2,23 @@
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>গান-সি | সুর সাধনা Pro - আধুনিক ভারতীয় ও বাংলা সঙ্গীত রেওয়াজ স্যুট</title>
   <meta name="description" content="লাইভ ভোকাল পিচ ট্রেইনার, অ্যাকোস্টিক তানপুরা, ভার্চুয়াল হারমোনিয়াম, তবলা তাল ও অলংকার সাধনা প্ল্যাটফর্ম।">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#f59e0b">
+  <meta name="theme-color" content="#f5f2ec">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/responsive.css">
+  <link rel="stylesheet" href="css/material.css">
 </head>
 <body>
 
   <!-- App Header -->
   <header class="app-header">
     <div class="brand-wrapper">
-      <div class="brand-icon">🎵</div>
+      <div class="brand-icon"><svg class="icon" aria-hidden="true"><use href="/icons.svg#music"></use></svg></div>
       <div class="brand-title">
         <h1>সুর সাধনা Pro</h1>
         <p>গান-সি | ভোকাল পিচ ও ক্লাসিক্যাল রেওয়াজ স্যুট</p>
@@ -46,65 +47,66 @@
 
       <!-- Practice Streak Pill -->
       <div class="streak-pill" id="streakPill" title="ধারাবাহিক সাধনা স্ট্রিক">
-        🔥 <span id="streakCount">১</span> দিন স্ট্রিক
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#flame"></use></svg> <span id="streakCount">১</span> দিন স্ট্রিক
       </div>
 
       <!-- Live Riyaz Stopwatch -->
       <div class="timer-pill" title="আজকের রেওয়াজ সময়">
-        ⏱️ <span id="sessionTimer">00:00</span>
+        <svg class="icon" aria-hidden="true"><use href="/icons.svg#timer"></use></svg> <span id="sessionTimer">00:00</span>
       </div>
 
       <!-- Vocal Range Finder Trigger -->
-      <button id="vocalRangeBtn" class="btn-outline" type="button" title="কন্ঠের স্বরগ্রাম ও আদর্শ স্কেল নির্ণয়">🎙️ রেঞ্জ টেস্ট</button>
+      <button id="vocalRangeBtn" class="btn-outline" type="button" title="কন্ঠের স্বরগ্রাম ও আদর্শ স্কেল নির্ণয়"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> রেঞ্জ টেস্ট</button>
 
       <!-- Tanpura Quick Toggle -->
-      <button id="startTanpuraBtn" class="btn-outline" type="button">🪕 তানপুরা</button>
+      <button id="startTanpuraBtn" class="btn-outline" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#tanpura"></use></svg> তানপুরা</button>
 
       <!-- Record Button -->
-      <button id="recordBtn" class="btn-outline" type="button">⏺️ রেকর্ড</button>
+      <button id="recordBtn" class="btn-outline" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#record"></use></svg> রেকর্ড</button>
 
       <!-- Theme Select -->
-      <select id="themeSelect" class="btn-outline" style="padding:6px 10px;font-size:0.8rem;cursor:pointer;">
-        <option value="dark">🌑 ডার্ক স্টুডিও</option>
+      <select id="themeSelect" class="btn-outline" aria-label="থিম নির্বাচন করুন" style="padding:6px 10px;font-size:0.8rem;cursor:pointer;">
+        <option value="paper">☀️ ম্যাট পেপার</option>
+        <option value="dark">🌙 ডার্ক স্টুডিও (ঐচ্ছিক)</option>
         <option value="gold">👑 রয়্যাল গোল্ড</option>
         <option value="sunset">🌅 সূর্যাস্ত রাগ</option>
         <option value="wood">🪵 হারমোনিয়াম কাঠ</option>
       </select>
 
       <!-- About Button -->
-      <button id="aboutBtn" class="btn-outline" type="button" title="সম্পর্কে">ℹ️ সাহায্য</button>
+      <button id="aboutBtn" class="btn-outline" type="button" title="সম্পর্কে"><svg class="icon" aria-hidden="true"><use href="/icons.svg#info"></use></svg> সাহায্য</button>
     </div>
   </header>
 
   <!-- Navigation Tabs -->
-  <nav class="app-tabs">
-    <button class="tab-btn active" data-tab="tab-pitch">🎙️ লাইভ রেওয়াজ ও পিচ</button>
-    <button class="tab-btn" data-tab="tab-tanpura">🪕 তানপুরা ড্রোন</button>
-    <button class="tab-btn" data-tab="tab-harmonium">🎹 হারমোনিয়াম কিবোর্ড</button>
-    <button class="tab-btn" data-tab="tab-tabla">🥁 তবলা ও তাল</button>
-    <button class="tab-btn" data-tab="tab-alankars">🎼 অলংকার সাধনা</button>
-    <button class="tab-btn" data-tab="tab-ragas">📜 রাগ অভিধান</button>
-    <button class="tab-btn" data-tab="tab-recordings">📁 রেকর্ডিং ও হিস্ট্রি</button>
-    <button class="tab-btn" data-tab="tab-progress">📈 আমার অগ্রগতি</button>
-    <button class="tab-btn" data-tab="tab-theory">📚 তত্ত্ব কেন্দ্র</button>
-    <button class="tab-btn" data-tab="tab-ear">🎧 কান সাধনা</button>
+  <nav class="app-tabs" role="tablist" aria-label="সাধনার বিভাগ">
+    <button id="tabbtn-pitch" class="tab-btn active" type="button" role="tab" aria-selected="true" aria-controls="tab-pitch" data-tab="tab-pitch"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> লাইভ রেওয়াজ ও পিচ</button>
+    <button id="tabbtn-tanpura" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-tanpura" tabindex="-1" data-tab="tab-tanpura"><svg class="icon" aria-hidden="true"><use href="/icons.svg#tanpura"></use></svg> তানপুরা ড্রোন</button>
+    <button id="tabbtn-harmonium" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-harmonium" tabindex="-1" data-tab="tab-harmonium"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> হারমোনিয়াম কিবোর্ড</button>
+    <button id="tabbtn-tabla" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-tabla" tabindex="-1" data-tab="tab-tabla"><svg class="icon" aria-hidden="true"><use href="/icons.svg#drum"></use></svg> তবলা ও তাল</button>
+    <button id="tabbtn-alankars" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-alankars" tabindex="-1" data-tab="tab-alankars"><svg class="icon" aria-hidden="true"><use href="/icons.svg#pattern"></use></svg> অলংকার সাধনা</button>
+    <button id="tabbtn-ragas" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-ragas" tabindex="-1" data-tab="tab-ragas"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> রাগ অভিধান</button>
+    <button id="tabbtn-recordings" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-recordings" tabindex="-1" data-tab="tab-recordings"><svg class="icon" aria-hidden="true"><use href="/icons.svg#folder"></use></svg> রেকর্ডিং ও হিস্ট্রি</button>
+    <button id="tabbtn-progress" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-progress" tabindex="-1" data-tab="tab-progress"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> আমার অগ্রগতি</button>
+    <button id="tabbtn-theory" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-theory" tabindex="-1" data-tab="tab-theory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> তত্ত্ব কেন্দ্র</button>
+    <button id="tabbtn-ear" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-ear" tabindex="-1" data-tab="tab-ear"><svg class="icon" aria-hidden="true"><use href="/icons.svg#headphones"></use></svg> কান সাধনা</button>
   </nav>
 
   <!-- Main Content Container -->
   <main class="app-container">
 
     <!-- 1. LIVE PITCH TRAINER TAB -->
-    <section id="tab-pitch" class="tab-panel active">
+    <section id="tab-pitch" class="tab-panel active" role="tabpanel" aria-labelledby="tabbtn-pitch" tabindex="0">
       <!-- Studio Ambience & Swaramandal Strum Bar -->
       <div class="studio-ambience-bar">
         <div class="ambience-controls">
           <label style="font-size:0.85rem;font-weight:700;display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="reverbToggle" checked> 🏛️ কনসার্ট হল রিভার্ব
+            <input type="checkbox" id="reverbToggle" checked> <svg class="icon" aria-hidden="true"><use href="/icons.svg#hall"></use></svg> কনসার্ট হল রিভার্ব
           </label>
           <input type="range" id="reverbLevelSlider" min="0" max="1" step="0.05" value="0.35" style="width:90px;" title="রিভার্ব মাত্রা">
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
-          <button id="swaramandalBtn" class="btn-outline" type="button" title="স্বরমণ্ডল হার্প ঝালা শুনুন">✨ স্বরমণ্ডল ঝালা</button>
+          <button id="swaramandalBtn" class="btn-outline" type="button" title="স্বরমণ্ডল হার্প ঝালা শুনুন"><svg class="icon" aria-hidden="true"><use href="/icons.svg#sparkle"></use></svg> স্বরমণ্ডল ঝালা</button>
           <div id="activeRagaPill" style="display:none;background:rgba(245,158,11,0.15);border:1px solid var(--primary);color:var(--primary);padding:4px 10px;border-radius:14px;font-size:0.8rem;font-weight:700;">
             রাগ: <span id="activeRagaName">--</span>
             <button id="clearRagaBtn" style="background:none;border:none;color:var(--text-muted);cursor:pointer;margin-left:4px;">✕</button>
@@ -118,7 +120,7 @@
       <!-- Tuning System Toggle Bar -->
       <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
         <span style="font-size:0.75rem;color:var(--text-muted);">টিউনিং মান:</span>
-        <select id="tuningSelect" class="btn-outline" style="padding:4px 8px;font-size:0.75rem;cursor:pointer;">
+        <select id="tuningSelect" class="btn-outline" aria-label="টিউনিং পদ্ধতি নির্বাচন করুন" style="padding:4px 8px;font-size:0.75rem;cursor:pointer;">
           <option value="just_intonation" selected>২২ শ্রুতি (Just Intonation - শাস্ত্রীয় অনুপাত)</option>
           <option value="equal_temperament">12-TET (সম-বিভক্ত স্কেল)</option>
         </select>
@@ -128,8 +130,8 @@
         <!-- Left: Pitch Display & Tuner -->
         <div class="card">
           <div class="card-header">
-            <div class="card-title">🎙️ লাইভ ভোকাল পিচ মনিটর</div>
-            <button id="startMicBtn" class="btn-primary" type="button">🎤 রেওয়াজ শুরু করুন</button>
+            <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> লাইভ ভোকাল পিচ মনিটর</div>
+            <button id="startMicBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> রেওয়াজ শুরু করুন</button>
           </div>
 
           <!-- Hero Pitch Box -->
@@ -168,7 +170,7 @@
         <!-- Right: Riyaz Guidance & Real-time Stats -->
         <div class="card">
           <div class="card-header">
-            <div class="card-title">📊 সাধনা অ্যানালিটিক্স ও পরামর্শ</div>
+            <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> সাধনা অ্যানালিটিক্স ও পরামর্শ</div>
           </div>
 
           <div class="stats-grid">
@@ -195,10 +197,10 @@
     </section>
 
     <!-- 2. TANPURA DRONE TAB -->
-    <section id="tab-tanpura" class="tab-panel">
+    <section id="tab-tanpura" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-tanpura" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🪕 অ্যাকোস্টিক তানপুরা ড্রোন ও জোয়ারি সিমুলেটর</div>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#tanpura"></use></svg> অ্যাকোস্টিক তানপুরা ড্রোন ও জোয়ারি সিমুলেটর</div>
         </div>
 
         <div class="tanpura-box" id="tanpuraBox">
@@ -206,19 +208,19 @@
           <div class="tanpura-strings-visual">
             <div class="tanpura-string-col">
               <div class="tanpura-wire"></div>
-              <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">১ম তার (পা/মা/নি)</span>
+              <span class="tanpura-string-label tanpura-string-primary">১ম তার (পা/মা/নি)</span>
             </div>
             <div class="tanpura-string-col">
               <div class="tanpura-wire"></div>
-              <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">২য় তার (সা)</span>
+              <span class="tanpura-string-label">২য় তার (সা)</span>
             </div>
             <div class="tanpura-string-col">
               <div class="tanpura-wire"></div>
-              <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);">৩য় তার (সা)</span>
+              <span class="tanpura-string-label">৩য় তার (সা)</span>
             </div>
             <div class="tanpura-string-col">
               <div class="tanpura-wire"></div>
-              <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">৪র্থ তার (খাদের সা)</span>
+              <span class="tanpura-string-label tanpura-string-primary">৪র্থ তার (খাদের সা)</span>
             </div>
           </div>
 
@@ -283,10 +285,10 @@
     </section>
 
     <!-- 3. HARMONIUM TAB -->
-    <section id="tab-harmonium" class="tab-panel">
+    <section id="tab-harmonium" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-harmonium" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🎹 ভার্চুয়াল হারমোনিয়াম (Virtual Harmonium)</div>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> ভার্চুয়াল হারমোনিয়াম (Virtual Harmonium)</div>
           <span style="font-size:0.8rem;color:var(--text-muted);">কিবোর্ড দিয়ে বাজাতে পারেন: [A], [W], [S], [E], [D]...</span>
         </div>
 
@@ -304,11 +306,11 @@
     </section>
 
     <!-- 4. TABLA & METRONOME TAB -->
-    <section id="tab-tabla" class="tab-panel">
+    <section id="tab-tabla" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-tabla" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🥁 তবলা ও ছন্দ মেট্রোনম (Tabla Taal Machine)</div>
-          <button id="startTaalBtn" class="btn-primary" type="button">🥁 তাল শুরু করুন</button>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#drum"></use></svg> তবলা ও ছন্দ মেট্রোনোম (Tabla Taal Machine)</div>
+          <button id="startTaalBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#drum"></use></svg> তাল শুরু করুন</button>
         </div>
 
         <div class="tanpura-controls-grid" style="margin-bottom:16px;">
@@ -347,22 +349,22 @@
     </section>
 
     <!-- 5. ALANKARS PRACTICE TAB -->
-    <section id="tab-alankars" class="tab-panel">
+    <section id="tab-alankars" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-alankars" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🎼 অলংকার ও পল্টা রেওয়াজ মডিউল</div>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#pattern"></use></svg> অলংকার ও পল্টা রেওয়াজ মডিউল</div>
         </div>
 
         <!-- Interactive Guided Practice Arena -->
         <div class="interactive-practice-box" id="guidedPracticeBox">
-          <h3 id="guidedPracticeTitle" style="color:var(--primary);margin-bottom:6px;">🎯 গাইডেড কারাওকে স্বর সাধনা</h3>
+          <h3 id="guidedPracticeTitle" style="color:var(--primary);margin-bottom:6px;"><svg class="icon" aria-hidden="true"><use href="/icons.svg#target"></use></svg> গাইডেড কারাওকে স্বর সাধনা</h3>
           <p style="font-size:0.85rem;color:var(--text-muted);">মাইক্রোফোন চালু রেখে বর্তমান টার্গেট স্বরটি গান। নিখুঁত হলে পরবর্তী স্বরে এগিয়ে যাবে!</p>
 
           <div class="guided-swara-trail" id="guidedSwaraTrail"></div>
 
           <div style="display:flex;justify-content:center;gap:12px;margin-top:14px;">
-            <button id="startGuidedPracticeBtn" class="btn-primary" type="button">🚀 অনুশীলন শুরু করুন</button>
-            <button id="stopGuidedPracticeBtn" class="btn-outline" type="button" style="display:none;">⏹️ থামান</button>
+            <button id="startGuidedPracticeBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> অনুশীলন শুরু করুন</button>
+            <button id="stopGuidedPracticeBtn" class="btn-outline" type="button" style="display:none;"><svg class="icon" aria-hidden="true"><use href="/icons.svg#stop"></use></svg> থামান</button>
           </div>
 
           <div class="practice-stats-strip" id="guidedStatsStrip" style="display:none;">
@@ -377,46 +379,80 @@
     </section>
 
     <!-- 6. RAGAS EXPLORER TAB -->
-    <section id="tab-ragas" class="tab-panel">
+    <section id="tab-ragas" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-ragas" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📜 ভারতীয় শাস্ত্রীয় সংগীত রাগ অভিধান</div>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> ভারতীয় শাস্ত্রীয় সংগীত রাগ অভিধান</div>
         </div>
         <div class="raga-grid" id="ragaGrid"></div>
+      </div>
+
+      <!-- Raga Learning Mode: Sa → Aroha → Avaroha → Pakad -->
+      <div class="card raga-learning-box" id="ragaLearningBox" hidden>
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#target"></use></svg> ধাপে ধাপে রাগ শিক্ষা</div>
+          <span id="ragaLearningBadge" class="lesson-badge">শিক্ষক-যাচাই বাকি</span>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">সা স্থাপন করে আরোহ, অবরোহ ও পাকড় অনুসরণ করুন। প্রতিটি লক্ষ্য ৩০০ms স্থির ধরলে পরের ধাপে যাবে। অক্টেভও মিলতে হবে—নিচু ‘সা’ ও উঁচু ‘সাঁ’ আলাদা।</p>
+        <div id="ragaStageStepper" class="lesson-stepper" aria-label="রাগ শিক্ষার ধাপ"></div>
+        <div class="lesson-target-row">
+          <div><span>বর্তমান ধাপ</span><strong id="ragaLessonStage">--</strong></div>
+          <div><span>লক্ষ্য স্বর</span><strong id="ragaLessonTarget">--</strong></div>
+          <div><span>অগ্রগতি</span><strong id="ragaLessonProgress">0%</strong></div>
+        </div>
+        <div id="ragaHoldMeter" class="lesson-hold-track" role="progressbar" aria-label="লক্ষ্য ধরে রাখার অগ্রগতি" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="ragaHoldFill"></div></div>
+        <div id="ragaLessonTrail" class="guided-swara-trail" aria-label="বর্তমান ধাপের স্বরক্রম"></div>
+        <div id="ragaLessonMessage" class="lesson-message" role="status" aria-live="polite"></div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
+          <button id="startRagaLessonBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> শিক্ষা শুরু করুন</button>
+          <button id="playRagaTargetBtn" class="btn-outline" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> লক্ষ্য শুনুন</button>
+          <button id="stopRagaLessonBtn" class="btn-outline" type="button" style="display:none;"><svg class="icon" aria-hidden="true"><use href="/icons.svg#stop"></use></svg> থামান</button>
+        </div>
+        <div class="practice-stats-strip" id="ragaLessonStats" style="display:none;">
+          <div>সময়: <strong id="ragaLessonElapsed">0:00</strong></div>
+          <div>নিখুঁত হার: <strong id="ragaLessonAccuracy">0%</strong></div>
+          <div>পাকড়ের সম্ভাব্য মিল: <strong id="ragaLessonPakad">--</strong></div>
+        </div>
+        <p style="font-size:0.72rem;color:var(--text-muted);margin-top:10px;">সহায়ক অনুশীলন মাপ; শিল্পের চূড়ান্ত মান নয়। পাকড় মিল এবং AI/ডেটা যাচাই শিক্ষক-যাচাইয়ের বিকল্প নয়।</p>
       </div>
     </section>
 
     <!-- 7. RECORDINGS & HISTORY TAB -->
-    <section id="tab-recordings" class="tab-panel">
+    <section id="tab-recordings" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-recordings" tabindex="0">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📁 রেওয়াজ রেকর্ডিং ও অডিও লাইব্রেরি</div>
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#folder"></use></svg> রেওয়াজ রেকর্ডিং ও অডিও লাইব্রেরি</div>
         </div>
         <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:10px;">ব্যক্তিগত রেকর্ডিং প্রথমে আপনার ব্রাউজারে (IndexedDB) থাকে — সার্ভারে পাঠানো ঐচ্ছিক ব্যাকআপ।</div>
+        <label style="display:flex;gap:8px;align-items:center;font-size:0.82rem;color:var(--text-muted);margin-bottom:10px;cursor:pointer;">
+          <input type="checkbox" id="cloudBackupToggle"> নতুন রেকর্ডিং সার্ভারে ব্যাকআপ করুন (ডিফল্ট বন্ধ; ব্যক্তিগত ডেটা আপনার অনুমতি ছাড়া আপলোড হবে না)
+        </label>
+        <div id="backupStatus" role="status" aria-live="polite" style="font-size:0.75rem;color:var(--text-muted);min-height:18px;"></div>
         <div id="recordingsList" class="recordings-list">
           <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:20px;">
-            এখনও কোনো রেকর্ডিং সংরক্ষিত হয়নি। উপরে <strong>"⏺️ রেকর্ড"</strong> চাপুন।
+            এখনও কোনো রেকর্ডিং সংরক্ষিত হয়নি। উপরে <strong>“রেকর্ড”</strong> বাটন চাপুন।
           </div>
         </div>
-        <div class="card-header" style="margin-top:14px;"><div class="card-title">🗓️ সাধনা ক্যালেন্ডার</div></div>
+        <div class="card-header" style="margin-top:14px;"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#timer"></use></svg> সাধনা ক্যালেন্ডার</div></div>
         <div id="practiceCalendar" style="display:grid;grid-template-columns:repeat(26,1fr);gap:3px;margin-top:8px;"></div>
         <div style="font-size:0.75rem;color:var(--text-muted);margin-top:6px;">সহায়ক পরিমাপ — স্কোর শিল্পের চূড়ান্ত মান নয়।</div>
       </div>
     </section>
 
     <!-- 8. PROGRESS DASHBOARD TAB -->
-    <section id="tab-progress" class="tab-panel">
+    <section id="tab-progress" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-progress" tabindex="0">
       <div class="card">
-        <div class="card-header"><div class="card-title">👤 আমার অ্যাকাউন্ট</div></div>
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#info"></use></svg> আমার অ্যাকাউন্ট</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <input id="accountName" placeholder="আপনার নাম" style="flex:1;min-width:140px;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card-subtle);color:var(--text-main);">
+          <input id="accountName" aria-label="আপনার নাম" placeholder="আপনার নাম" style="flex:1;min-width:140px;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card-subtle);color:var(--text-main);">
           <button id="accountSaveBtn" class="btn-outline" type="button">সংরক্ষণ</button>
+          <button id="accountResetBtn" class="btn-outline" type="button" style="color:var(--text-muted);">স্থানীয় মোডে ফিরুন</button>
         </div>
         <div id="accountStatus" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">🔌 স্থানীয় মোড</div>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">📈 অগ্রগতি ড্যাশবোর্ড</div>
-          <select id="progressRange" class="btn-outline" style="font-size:0.8rem;"><option value="7d">৭ দিন</option><option value="30d">৩০ দিন</option><option value="all" selected>সব</option></select>
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> অগ্রগতি ড্যাশবোর্ড</div>
+          <select id="progressRange" class="btn-outline" aria-label="অগ্রগতির সময়সীমা" style="font-size:0.8rem;"><option value="7d">৭ দিন</option><option value="30d">৩০ দিন</option><option value="all" selected>সব</option></select>
         </div>
         <div class="stats-grid">
           <div class="stat-box"><div class="stat-val" id="dashWeekly">--</div><div class="stat-label">সাপ্তাহিক রেওয়াজ (মিনিট)</div></div>
@@ -425,30 +461,30 @@
           <div class="stat-box"><div class="stat-val" id="dashBest">--</div><div class="stat-label">সেরা সেশন</div></div>
         </div>
         <div id="dashSuggestion" style="margin-top:10px;font-size:0.9rem;color:var(--primary);"></div>
-        <div class="card-header" style="margin-top:12px;"><div class="card-title">🎼 স্বয়ংক্রিয় পল্টা জেনারেটর</div></div>
+        <div class="card-header" style="margin-top:12px;"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#pattern"></use></svg> স্বয়ংক্রিয় পল্টা জেনারেটর</div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
-          <select id="genNotes" class="btn-outline"><option value="4">৪ স্বর</option><option value="5">৫ স্বর</option><option value="7">৭ স্বর</option></select>
-          <select id="genMotion" class="btn-outline"><option value="saral">সরল</option><option value="bakra">বক্র</option><option value="lanka">লম্ফ</option><option value="punorabritti">পুনরাবৃত্তি</option></select>
-          <select id="genBpm" class="btn-outline"><option value="60">৬০ BPM</option><option value="80" selected>৮০ BPM</option><option value="100">১০০ BPM</option></select>
-          <button id="genBtn" class="btn-primary" type="button">✨ পল্টা বানান</button>
+          <select id="genNotes" class="btn-outline" aria-label="অলংকারের স্বর সংখ্যা"><option value="4">৪ স্বর</option><option value="5">৫ স্বর</option><option value="7">৭ স্বর</option></select>
+          <select id="genMotion" class="btn-outline" aria-label="অলংকারের ধরন"><option value="saral">সরল</option><option value="bakra">বক্র</option><option value="lanka">লম্ফ</option><option value="punorabritti">পুনরাবৃত্তি</option></select>
+          <select id="genBpm" class="btn-outline" aria-label="অলংকারের গতি"><option value="60">৬০ BPM</option><option value="80" selected>৮০ BPM</option><option value="100">১০০ BPM</option></select>
+          <button id="genBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#sparkle"></use></svg> পল্টা বানান</button>
         </div>
         <div id="genOutput" style="font-size:1rem;font-weight:700;color:var(--text-main);"></div>
       </div>
     </section>
 
     <!-- 9. THEORY CENTRE TAB -->
-    <section id="tab-theory" class="tab-panel">
+    <section id="tab-theory" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-theory" tabindex="0">
       <div class="card">
-        <div class="card-header"><div class="card-title">📚 সংগীততত্ত্ব শিক্ষা কেন্দ্র</div><span id="theoryVerifiedBadge" style="font-size:0.75rem;color:var(--text-muted);"></span></div>
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> সংগীততত্ত্ব শিক্ষা কেন্দ্র</div><span id="theoryVerifiedBadge" style="font-size:0.75rem;color:var(--text-muted);"></span></div>
         <div id="theoryList" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
     </section>
 
     <!-- 10. EAR TRAINING TAB -->
-    <section id="tab-ear" class="tab-panel">
+    <section id="tab-ear" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-ear" tabindex="0">
       <div class="card">
-        <div class="card-header"><div class="card-title">🎧 কান সাধনা (Ear Training)</div>
-          <select id="earLevel" class="btn-outline" style="font-size:0.8rem;">
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#headphones"></use></svg> কান সাধনা (Ear Training)</div>
+          <select id="earLevel" class="btn-outline" aria-label="কান সাধনার কঠিনতা" style="font-size:0.8rem;">
             <option value="easy">সহজ (সা গা পা)</option>
             <option value="medium">মধ্য (৫ স্বর)</option>
             <option value="hard">কঠিন (৮ স্বর)</option>
@@ -456,7 +492,7 @@
         </div>
         <p style="font-size:0.85rem;color:var(--text-muted);">একটি স্বর বাজবে — কোন স্বর তা চিনুন। স্কোর সহায়ক পরিমাপ।</p>
         <div style="display:flex;gap:8px;align-items:center;margin:10px 0;">
-          <button id="earPlayBtn" class="btn-primary" type="button">🔊 স্বর শুনুন</button>
+          <button id="earPlayBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> স্বর শুনুন</button>
           <div>স্কোর: <strong id="earScore">0/0</strong></div>
         </div>
         <div id="earQuestion" style="font-weight:700;margin-bottom:8px;">শুরু করতে “স্বর শুনুন” চাপুন</div>
@@ -478,7 +514,7 @@
   <!-- Vocal Range Finder Modal -->
   <div id="vocalRangeModal" class="modal-overlay">
     <div class="modal-card">
-      <h2 style="color:var(--primary);margin-bottom:8px;">🎙️ ভোকাল রেঞ্জ ও আদর্শ 'সা' ফাইন্ডার</h2>
+      <h2 style="color:var(--primary);margin-bottom:8px;"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> ভোকাল রেঞ্জ ও আদর্শ 'সা' ফাইন্ডার</h2>
       <p>আপনার গলার সবচেয়ে নিচের খাদ্যের স্বর থেকে শুরু করে সর্বোচ্চ চড়া স্বর পর্যন্ত একটানা গান। অ্যালগরিদম আপনার স্বরগ্রাম মেপে উপযুক্ত স্কেল সুপারিশ করবে।</p>
 
       <div class="range-result-box" id="rangeTestLiveBox">
@@ -507,7 +543,7 @@
       </div>
 
       <div style="display:flex;justify-content:space-between;gap:10px;">
-        <button id="toggleRangeTestBtn" class="btn-primary" type="button">🎙️ টেস্ট শুরু করুন</button>
+        <button id="toggleRangeTestBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> টেস্ট শুরু করুন</button>
         <button id="closeRangeModalBtn" class="btn-outline" type="button">বন্ধ করুন</button>
       </div>
     </div>
@@ -535,10 +571,13 @@
   <script src="js/audio/tabla.js"></script>
   <script src="js/audio/tanpura.js"></script>
   <script src="js/practice/guided-practice.js"></script>
+  <script src="js/practice/raga-learning.js"></script>
   <script src="js/practice/vocal-range.js"></script>
   <script src="js/practice/alankar-generator.js"></script>
   <script src="js/practice/analytics.js"></script>
   <script src="js/ui/auth.js"></script>
+  <script src="js/ui/numbers.js"></script>
+  <script src="js/ui/music-data.js"></script>
   <script src="js/practice/ear-training.js"></script>
   <script src="audio-engine.js"></script>
   <script src="pitch-detector.js"></script>

@@ -6,6 +6,26 @@
 
 ## 🌟 নতুন ও উন্নত বৈশিষ্ট্যসমূহ (Next-Gen Features)
 
+### v2.2.1 — Bengali digits ও layout fixes
+- **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz ও date—ASCII digit দেখাবে না; form/API value ASCII-ই থাকে।
+- **🪕 Tanpura spacing fix:** চারটি string label responsive grid-এ; mobile-এ ২×২, desktop-এ ৪ কলাম—overlap হয় না।
+- **🎨 নতুন ডিজাইন:** warm paper background, white matte cards, clay accent, soft elevation; generic black/neon look সরানো হয়েছে।
+- **🧭 Consistent iconography:** reusable SVG icon set; header, tabs, cards, buttons ও recording actions একই visual language-এ।
+- **📱 Responsive layout:** sticky pill tabs, mobile-safe header, stacked recording rows, contained modals ও safe-area padding।
+- **🌗 Theme choice:** ডিফল্ট “ম্যাট পেপার”; Royal Gold, Sunset, Wood এবং optional Dark Studio রাখা হয়েছে।
+- **📊 Theme-aware charts:** pitch canvas এখন light/dark theme token অনুযায়ী repaint হয়।
+
+### v2.1 — রাগ শিক্ষা, privacy ও নিরাপত্তা
+- **🎯 ধাপে ধাপে রাগ শিক্ষা:** সা → আরোহ → অবরোহ → পাকড়; absolute-MIDI octave check, ৩০০ms time-based hold, target-locked pitch graph এবং “সম্ভাব্য পাকড় মিল” (শিল্পের চূড়ান্ত বিচার নয়)।
+- **🔒 Local-first recording:** নতুন রেকর্ডিং ডিফল্টে শুধু IndexedDB; server backup ডিফল্ট বন্ধ। চাইলে প্রতিটি রেকর্ডিং আলাদাভাবে “☁️ ব্যাকআপ” করা যায়।
+- **🛡️ Token ও ownership:** invalid token 401; user ভেদে recording list/stream/delete isolated; existing username থেকে নতুন token জারি হয় না।
+- **♿ Accessibility:** pinch-zoom আবার চালু, সব form control-এ label, keyboard-driven tabs (`←/→/Home/End`), duplicate ID বন্ধ, improved contrast।
+- **🐛 C-scale fix:** `সা = C` এখন ভুল করে A# হয়ে যায় না; practice accuracy প্রতি mic session-এ reset হয়।
+- **📦 Native offline content:** রাগ/অলংকার/তত্ত্বের bundled fallback থাকায় backend ছাড়াই Android/PWA-এ শিক্ষা-content খোলে।
+- **🔄 Stale UI fix:** SW v7 network-first—কিছুক্ষণ পর পুরোনো cached HTML/JS/CSS আর UI নষ্ট করবে না।
+
+### মূল স্যুট
+
 1. **🎯 গাইডেড কারাওকে অলংকার এরিনা (Interactive Guided Practice)**:
    - স্বরলিপির প্রতিটি স্বর (সা, রে, গা, মা...) রিয়েল-টাইমে ভিজ্যুয়াল ট্রেইল হিসেবে প্রদর্শিত হয়।
    - ব্যবহারকারী মাইক্রোফোনে সঠিক সুরে স্বরটি গাইলে কার্ডটি সবুজ আভা নিয়ে পরবর্তী স্বরে এগিয়ে যায়।
@@ -32,11 +52,12 @@
 7. **🥁 ৬টি শাস্ত্রীয় তাল মেশিন (Tabla Machine)**:
    - ত্রিতাল (১৬ মাত্রা), কাহারবা (৮ মাত্রা), দাদরা (৬ মাত্রা), রূপক (৭ মাত্রা), **ঝাপতাল (১০ মাত্রা)**, এবং **একতাল (১২ মাত্রা)**।
 
-8. **🎨 ৪টি অনন্য ভিজ্যুয়াল থিম (Visual Studio Themes)**:
-   - 🌑 ডার্ক স্টুডিও (Dark Studio Default)
-   - 👑 রয়্যাল গোল্ড (Royal Gold)
-   - 🌅 সূর্যাস্ত রাগ (Sunset Raga)
-   - 🪵 হারমোনিয়াম কাঠ (Vintage Harmonium Wood)
+8. **🎨 ৫টি ভিজ্যুয়াল থিম (Visual Studio Themes)**:
+   - ☀️ ম্যাট পেপার (Default)
+   - 👑 রয়্যাল গোল্ড
+   - 🌅 সূর্যাস্ত রাগ
+   - 🪵 হারমোনিয়াম কাঠ
+   - 🌙 ডার্ক স্টুডিও (Optional)
 
 ---
 
@@ -61,7 +82,7 @@ npm run dev
 
 ---
 
-## 📡 REST API এন্ডপয়েন্টস (v2.0)
+## 📡 REST API এন্ডপয়েন্টস (v2.2)
 
 | মেথড | এন্ডপয়েন্ট | বিবরণ |
 |---|---|---|
@@ -72,26 +93,27 @@ npm run dev
 | `GET` | `/api/theory` | সংগীততত্ত্ব পাঠ্যক্রম + কুইজ |
 | `GET` | `/api/stats?range=7d\|30d\|all` | IST স্ট্রিক, মোট মিনিট ও হিস্ট্রি (SQLite) |
 | `POST` | `/api/stats/session` | সেশন সেভ `{minutes:1..180, accuracy?:0..100, raga_id?, alankar_id?}` |
-| `GET` | `/api/recordings` | রেকর্ডিং তালিকা (stream URL সহ) |
-| `POST` | `/api/recordings` | অডিও আপলোড — strict MIME + magic-byte যাচাই |
-| `POST` | `/api/users` | ব্যক্তিগত ব্যবহারকারী + token তৈরি `{username}` |
+| `GET` | `/api/recordings` | রেকর্ডিং তালিকা (stream URL সহ; owner-filtered) |
+| `POST` | `/api/recordings` | opt-in অডিও ব্যাকআপ — strict MIME + magic-byte যাচাই |
+| `POST` | `/api/users` | ব্যক্তিগত ব্যবহারকারী + token তৈরি `{username}`; existing username → 409 |
 | `GET` | `/api/users/me` | বর্তমান ব্যবহারকারী (Bearer token) |
 | `GET` | `/api/recordings/:filename/stream` | ব্যক্তিগত স্ট্রিম (Range support; ownership check; পুরোনো `/recordings-stream/*` redirect হয়) |
 | `DELETE` | `/api/recordings/:filename` | রেকর্ডিং মুছে ফেলা |
 
-Privacy: ব্যক্তিগত রেকর্ডিং default = ব্রাউজার IndexedDB; সার্ভার আপলোড ঐচ্ছিক ব্যাকআপ।
+Privacy: ব্যক্তিগত রেকর্ডিং default = ব্রাউজার IndexedDB; server backup ডিফল্ট বন্ধ এবং শুধু স্পষ্ট অনুমতি/ব্যাকআপ বাটনে আপলোড হয়। Invalid bearer token 401; না-দেওয়া token হলে local user 1 mode থাকে।
 
 ## 🧪 যাচাই
 
 ```powershell
-npm test              # 38 unit/integration
+npm test              # 92 unit/integration (17 suites)
 npm run validate:ragas
-npm run test:browser  # 6 headless-Chrome specs (tabs, theory, generator, ear, mic start/stop)
+npm run validate:alankars
+npm run test:browser  # 16 headless-Chrome specs (tabs, theory, generator, ear, mic, a11y, Bengali digits, light/dark theme, mobile layout, tanpura labels, C-scale, raga learning, opt-in backup, token reset, offline fallback)
 ```
 
 ## 📱 Android / PWA
 
-`docs/ANDROID.md` দেখুন (Capacitor config + অডিও পরীক্ষা-তালিকা)। আইকন (`icon-192/512.png`) ও SW v2 সহ installable PWA।
+`docs/ANDROID.md` দেখুন (Capacitor config + অডিও পরীক্ষা-তালিকা)। আইকন (`icon-192/512.png`) ও SW v7 network-first strategy সহ installable PWA; Android version 2.2.1 (code 5)। রাগ/অলংকার/তত্ত্বের bundled fallback থাকায় backend ছাড়াও Native-এ শিক্ষা-content খোলে।
 
 ## ✅ সংগীততাত্ত্বিক যাচাই
 

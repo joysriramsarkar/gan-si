@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const { CORS_ORIGIN, UPLOAD_DIR } = require('./config');
+const { version } = require('../../package.json');
 const { notFound, errorHandler } = require('./middleware/error');
 const { auth } = require('./middleware/auth');
 
@@ -40,7 +41,7 @@ function createApp() {
   app.get('/api/health', (req, res) => {
     let db = 'ok';
     try { require('./db').getDb().prepare('SELECT 1').get(); } catch { db = 'error'; }
-    res.json({ status: 'ok', app: 'Sur Sadhana Pro', version: '2.0.0', timestamp: new Date().toISOString(), db });
+    res.json({ status: 'ok', app: 'Sur Sadhana Pro', version, timestamp: new Date().toISOString(), db });
   });
 
   app.use('/api/ragas', require('./routes/ragas'));

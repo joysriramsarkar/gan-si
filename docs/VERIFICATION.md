@@ -14,3 +14,14 @@
 ## বর্তমান অবস্থা
 - ১০ রাগ: সব `verified:false`
 - তত্ত্ব ১০ অধ্যায়: `verified:false`
+
+## স্বয়ংক্রিয় যাচাই (সংগীততাত্ত্বিক সত্য নয়)
+```powershell
+npm test -- --runInBand   # 17 suite / 92 test
+npm run validate:ragas    # 10 ragas structural validation
+npm run validate:alankars # 7 alankars structural validation
+npm run test:browser      # 16 Playwright test
+node scripts/smoke.cjs    # isolated temporary DB/uploads
+node scripts/smoke-auth.cjs
+```
+Fresh Lighthouse (2026-11-25, v2.2.1): Accessibility / SEO / Best Practices = **100 / 100 / 100**।

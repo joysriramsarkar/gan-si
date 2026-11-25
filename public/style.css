@@ -18,6 +18,7 @@
   --radius-lg: 16px;
   --radius-md: 10px;
   --radius-sm: 6px;
+  color-scheme: dark;
 }
 
 [data-theme="gold"] {
@@ -176,7 +177,7 @@ nav.app-tabs {
   overflow-x: auto;
   border-bottom: 1px solid var(--border-color);
   scrollbar-width: none;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 nav.app-tabs::-webkit-scrollbar {
@@ -448,6 +449,16 @@ main.app-container {
   background: rgba(245, 158, 11, 0.15);
   border-color: var(--primary);
   color: var(--primary);
+}
+
+select,
+select option {
+  color-scheme: dark;
+}
+
+select option {
+  background: var(--bg-card);
+  color: var(--text-main);
 }
 
 /* Canvas Graph */

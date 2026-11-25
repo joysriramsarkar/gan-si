@@ -1,4 +1,4 @@
-// Minimal PWA icons: dark rounded bg + gold swara circle. No deps (zlib only).
+// Minimal PWA icons: warm paper background + clay swara ring. No deps (zlib only).
 const fs = require('fs');
 const zlib = require('zlib');
 
@@ -8,12 +8,12 @@ function png(w, h, rgba) {
     raw[y * (w * 4 + 1)] = 0;
     for (let x = 0; x < w; x++) {
       const i = y * (w * 4 + 1) + 1 + x * 4;
-      // gold ring on dark: distance from center
+      // clay ring on warm paper
       const dx = (x - w / 2) / w, dy = (y - h / 2) / h;
       const d = Math.sqrt(dx * dx + dy * dy);
-      let r = 11, g = 15, b = 23, a = 255;
-      if (d > 0.30 && d < 0.38) { r = 245; g = 158; b = 11; }
-      else if (d <= 0.30) { r = 19; g = 27; b = 46; }
+      let r = 245, g = 242, b = 236, a = 255;
+      if (d > 0.30 && d < 0.38) { r = 164; g = 74; b = 42; }
+      else if (d <= 0.30) { r = 243; g = 220; b = 210; }
       raw[i] = r; raw[i + 1] = g; raw[i + 2] = b; raw[i + 3] = a;
     }
   }

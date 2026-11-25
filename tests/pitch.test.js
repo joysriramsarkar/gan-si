@@ -39,4 +39,27 @@ describe('PitchDetector MPM Algorithm', () => {
     const detected = PitchDetector.mcleodPitch(buf, sampleRate);
     expect(detected).toBe(-1);
   });
+
+  test('C scale root offset 0 is preserved instead of falling back to A#', () => {
+    const previous = global.window;
+    global.window = { audioEngine: { rootOffset: 0 } };
+    try {
+      expect(new PitchDetector().getRootOffset()).toBe(0);
+    } finally {
+      global.window = previous;
+    }
+  });
+
+  test('session accuracy and pitch history reset on a new listening session', () => {
+    const detector = new PitchDetector();
+    detector.totalSamples = 50;
+    detector.inTuneSamples = 40;
+    detector.pitchHistory = [60, 61];
+    detector.rawWindow = [220];
+    detector.resetSessionStats();
+    expect(detector.totalSamples).toBe(0);
+    expect(detector.inTuneSamples).toBe(0);
+    expect(detector.pitchHistory).toEqual([]);
+    expect(detector.rawWindow).toEqual([]);
+  });
 });

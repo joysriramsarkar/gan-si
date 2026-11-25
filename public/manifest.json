@@ -4,8 +4,8 @@
   "description": "Vocal Pitch Monitor & Riyaz Suite",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b0f17",
-  "theme_color": "#f59e0b",
+  "background_color": "#f5f2ec",
+  "theme_color": "#a44a2a",
   "icons": [
     {
       "src": "icon-192.png",
