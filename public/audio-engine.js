@@ -702,10 +702,13 @@ class AudioEngine {
   async startRecording(micStream) {
     this.init();
     this.recordedChunks = [];
+    this.lastRecordingError = null;
 
     if (micStream) {
-      const micSource = this.ctx.createMediaStreamSource(micStream);
-      micSource.connect(this.recordDest);
+      // Keep a reference: a source that is only reachable through the graph is
+      // otherwise free to be collected, producing a silent recording.
+      this.recordMicSource = this.ctx.createMediaStreamSource(micStream);
+      this.recordMicSource.connect(this.recordDest);
     }
 
     const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4'];
@@ -720,9 +723,21 @@ class AudioEngine {
         this.recordedChunks.push(e.data);
       }
     };
+    this.mediaRecorder.onerror = (e) => {
+      this.lastRecordingError = (e && e.error && e.error.name) || 'MediaRecorderError';
+      this.isRecording = false;
+    };
 
-    this.mediaRecorder.start(250);
+    try {
+      this.mediaRecorder.start(250);
+    } catch (err) {
+      this.lastRecordingError = (err && err.name) || 'StartError';
+      this.mediaRecorder = null;
+      this.isRecording = false;
+      return false;
+    }
     this.isRecording = true;
+    return true;
   }
 
   stopRecording() {
@@ -735,7 +750,8 @@ class AudioEngine {
       this.mediaRecorder.onstop = () => {
         const blob = new Blob(this.recordedChunks, { type: this.recordingMimeType || 'audio/webm' });
         this.isRecording = false;
-        resolve(blob);
+        // An empty recording must not be saved as a phantom item.
+        resolve(blob.size > 0 ? blob : null);
       };
 
       this.mediaRecorder.stop();

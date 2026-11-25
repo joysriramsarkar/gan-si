@@ -44,6 +44,14 @@ class PitchDetector {
     this.onPitchUpdate = null;
     this.onRangeSample = null;
     this.onSessionStart = null;
+    this.onMicEnded = null;   // device unplugged / permission revoked mid-session
+    this.onMicError = null;   // getUserMedia failed
+
+    // Mic lifecycle + signal watchdog
+    this.micTracks = [];
+    this.micSource = null;
+    this.lastPitchAt = null;
+    this._onTrackEnded = () => this.handleMicEnded('ended');
 
     // Note constants
     this.noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -85,6 +93,7 @@ class PitchDetector {
     this.rawWindow = [];
     this.lastStableFreq = null;
     this.smoothedPitch = null;
+    this.lastPitchAt = null;
   }
 
   setTuningSystem(system) {
@@ -96,26 +105,50 @@ class PitchDetector {
   async startListening() {
     if (window.audioEngine) {
       window.audioEngine.init();
+      // A suspended AudioContext yields an all-zero analyser buffer forever,
+      // which looks exactly like "nothing is being recorded". Await the resume.
+      if (window.audioEngine.ctx && window.audioEngine.ctx.state === 'suspended') {
+        try { await window.audioEngine.ctx.resume(); } catch (_) { /* handled below */ }
+      }
     }
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error("মাইক্রোফোন ব্রাউজারে সাপোর্ট করছে না।");
+      const err = new Error('getUserMedia unsupported');
+      err.name = 'TypeError';
+      if (this.onMicError) this.onMicError(err);
+      throw err;
     }
 
     // Explicit audio constraints to avoid browser voice processing distortion
-    this.micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false
-      }
-    });
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+    } catch (err) {
+      if (this.onMicError) this.onMicError(err);
+      throw err;
+    }
+    this.micStream = stream;
 
     const audioCtx = window.audioEngine.ctx;
     const source = audioCtx.createMediaStreamSource(this.micStream);
     this.analyser = audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
     source.connect(this.analyser);
+    this.micSource = source;
+
+    // If the device is unplugged / permission is revoked mid-session, the old
+    // code kept isListening=true forever: a ghost session with score 0.
+    this.micTracks = [];
+    this.micStream.getAudioTracks().forEach((track) => {
+      this.micTracks.push(track);
+      track.addEventListener('ended', this._onTrackEnded);
+    });
 
     this.isListening = true;
     this.resetSessionStats();
@@ -124,11 +157,32 @@ class PitchDetector {
     return this.micStream;
   }
 
+  handleMicEnded(reason) {
+    if (!this.isListening) return;
+    this.isListening = false;
+    if (this.animationId) {
+      cancelAnimationFrame(this.animationId);
+      this.animationId = null;
+    }
+    this.micStream = null;
+    this.analyser = null;
+    if (this.onMicEnded) this.onMicEnded(reason);
+  }
+
+  /** True when a valid pitch was detected within the last `ms` milliseconds. */
+  hasRecentSignal(ms = 6000) {
+    return this.lastPitchAt != null && (Date.now() - this.lastPitchAt) < ms;
+  }
+
   stopListening() {
     this.isListening = false;
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this.micTracks) {
+      this.micTracks.forEach((t) => t.removeEventListener('ended', this._onTrackEnded));
+      this.micTracks = [];
     }
     if (this.micStream) {
       this.micStream.getTracks().forEach(t => t.stop());
@@ -231,6 +285,7 @@ class PitchDetector {
     }
 
     if (procFreq > 60 && procFreq < 1200) {
+      this.lastPitchAt = Date.now();
       if (this.smoothedPitch === null) {
         this.smoothedPitch = procFreq;
       } else {

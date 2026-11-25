@@ -341,3 +341,73 @@ test('pitch trail two-panel layout fits a 390px mobile viewport', async ({ page 
   expect(info.right).toBeLessThanOrEqual(info.viewport);
   expect(info.buttons).toBeGreaterThanOrEqual(7);
 });
+
+const denyMic = () => {
+  Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
+    configurable: true,
+    value: async () => {
+      const err = new Error('Permission denied');
+      err.name = 'NotAllowedError';
+      throw err;
+    }
+  });
+};
+
+test('microphone permission failure is explained inline, not by a blocking alert', async ({ page }) => {
+  let dialogs = 0;
+  page.on('dialog', async (dialog) => { dialogs++; await dialog.dismiss(); });
+  await page.addInitScript(denyMic);
+  await page.goto('/');
+  await page.click('#startMicBtn');
+  await expect(page.locator('#micStatus')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('#micStatus')).toContainText('অনুমতি');
+  expect(await page.evaluate(() => window.pitchDetector.isListening)).toBe(false);
+  expect(dialogs).toBe(0);
+});
+
+test('record button reports mic failure inline and saves nothing', async ({ page }) => {
+  let dialogs = 0;
+  page.on('dialog', async (dialog) => { dialogs++; await dialog.dismiss(); });
+  await page.addInitScript(denyMic);
+  await page.goto('/');
+  await page.click('#recordBtn');
+  await expect(page.locator('#micStatus')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('#backupStatus')).toContainText('রেকর্ডিং');
+  expect(await page.evaluate(() => window.audioEngine.isRecording)).toBe(false);
+  expect(await page.locator('.recording-item').count()).toBe(0);
+  expect(dialogs).toBe(0);
+});
+
+test('mic self-check reports a working input with the fake device', async ({ page, context }) => {
+  await context.grantPermissions(['microphone']);
+  await page.goto('/');
+  await page.click('#micCheckBtn');
+  await expect(page.locator('#micStatus')).toHaveAttribute('data-state', 'ok', { timeout: 10000 });
+  await expect(page.locator('#micStatus')).toContainText('কাজ করছে');
+});
+
+test('mic device loss tears down the ghost session instead of keeping score 0', async ({ page, context }) => {
+  await context.grantPermissions(['microphone']);
+  await page.goto('/');
+  await page.click('#startMicBtn');
+  await expect(page.locator('#startMicBtn')).toContainText('থামান', { timeout: 15000 });
+  const result = await page.evaluate(() => {
+    const track = window.pitchDetector.micStream.getAudioTracks()[0];
+    track.dispatchEvent(new Event('ended'));
+    return { listening: window.pitchDetector.isListening, trackCount: window.pitchDetector.micTracks.length };
+  });
+  expect(result.listening).toBe(false);
+  await expect(page.locator('#startMicBtn')).toContainText('রেওয়াজ শুরু করুন');
+  await expect(page.locator('#micStatus')).toHaveAttribute('data-state', 'error');
+  await expect(page.locator('#micStatus')).toContainText('সংযোগ বিচ্ছিন্ন');
+});
+
+test('an outdated cached bundle is flagged with a reload action', async ({ page }) => {
+  await page.route('**/api/health', (route) => route.fulfill({
+    status: 200, contentType: 'application/json', body: JSON.stringify({ status: 'ok', version: '৯৯৯.০.০' })
+  }));
+  await page.goto('/');
+  await expect(page.locator('#versionNotice')).toBeVisible();
+  await expect(page.locator('#versionNotice')).toContainText('পুরোনো');
+  await expect(page.locator('#versionNotice button')).toContainText('রিলোড');
+});

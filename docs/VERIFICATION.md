@@ -20,11 +20,20 @@
 npm test -- --runInBand   # 17 suite / 92 test
 npm run validate:ragas    # 10 ragas structural validation
 npm run validate:alankars # 7 alankars structural validation
-npm run test:browser      # 19 Playwright test
+npm run test:browser      # 24 Playwright test
 node scripts/smoke.cjs    # isolated temporary DB/uploads
 node scripts/smoke-auth.cjs
 ```
-Fresh Lighthouse (2026-11-25, v2.5.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+Fresh Lighthouse (2026-11-25, v2.6.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+
+## মাইক / রেকর্ডিং ডায়াগনসিস (v2.6.0)
+- এই মেশিনে যাচাইকৃত root cause: `navigator.permissions.query({name:'microphone'})` → **`denied`**, `getUserMedia` ব্যর্থ → কোনো পিচ নমুনা/ট্রেইল/স্কোর/রেকর্ডিং তৈরি হয়নি। অনুমতি শুধু ব্রাউজার সেটিংস থেকে মানুষের দেওয়া যায়; অ্যাপ প্রোগ্রাম্যাটিকভাবে চাইতে পারে না।
+- `#micStatus` (aria-live): অনুমতি বন্ধ / ডিভাইস নেই / অন্য অ্যাপ ব্যস্ত / সংযোগ বিচ্ছিন্ন — প্রতিটির জন্য আলাদা বাংলা নির্দেশনা; আর কোনো blocking `alert()` নেই।
+- «মাইক যাচাই» → permission + ইনপুট ডিভাইস + স্বল্প `getUserMedia` পরীক্ষা; ট্র্যাক সঙ্গে সঙ্গে বন্ধ করা হয় (মাইক খোলা থাকে না)।
+- `track.onended` → ghost session (স্কোর ০, কিন্তু «থামান» দেখানো) ভেঙে সব প্র্যাকটিস মোড বন্ধ + গ্রাফ ফ্রিজ।
+- ৬ সেকেন্ড কোনো সুর না ধরা পড়লে সতর্কবার্তা; সুর না পেয়ে `/api/stats/session`-এ মিনিটও লগ হয় না।
+- খালি MediaRecorder blob আর phantom রেকর্ডিং হিসেবে সেভ হয় না; recorder error/status UI-তে দেখানো হয়।
+- পুরোনো cache-বান্ডেলের ট্যাব শনাক্ত হলে «এখনই রিলোড» নোটিশ (offline-এ নীরব)।
 
 ## গ্রাফ রিগ্রেশন (v2.5.0)
 - ফিক্সড `baseMidi±12` দুই-সপ্তক গ্রিড + নিচে ±৫০ সেন্ট রিবন; ভিউপোর্ট ≤৬৪০px-এ ক্যানভাস ৩৬০px, নইলে ৪০০px।
@@ -34,4 +43,4 @@ Fresh Lighthouse (2026-11-25, v2.5.0): Accessibility / SEO / Best Practices = **
 ## Bengali digit regression contract
 - DOM text, dynamic mutation, native select option label, `title`, `aria-label`, `placeholder` visible digit বাংলায় দেখাবে।
 - `input/select` value, `data-*`, IDs, URL, API payload ASCII থাকবে।
-- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v12 migration test হয়।
+- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v13 migration test হয়।

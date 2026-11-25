@@ -96,6 +96,32 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
   }
 
+  // Stale-tab check: a tab kept open across a deploy keeps running old JS,
+  // which looks like "nothing works". Compare the bundled version with the
+  // server's health endpoint and offer a one-click reload (offline = silent).
+  (() => {
+    const meta = document.querySelector('meta[name="gansi-version"]');
+    const notice = document.getElementById('versionNotice');
+    if (!meta || !notice) return;
+    const bundled = (meta.content || '').trim();
+    if (!bundled) return;
+    fetch('/api/health', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data || !data.version || data.version === bundled) return;
+        notice.hidden = false;
+        const text = document.createElement('span');
+        text.textContent = `এই ট্যাবটি পুরোনো সংস্করণ (${bundled}) চালাচ্ছে; সার্ভারে আছে ${data.version}। নতুন ফিচার পেতে রিলোড করুন।`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-outline';
+        btn.textContent = 'এখনই রিলোড';
+        btn.addEventListener('click', () => location.reload());
+        notice.replaceChildren(text, btn);
+      })
+      .catch(() => {});
+  })();
+
   // Screen Wake Lock Handler
   let wakeLock = null;
   const requestWakeLock = async () => {
@@ -117,10 +143,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const startMicBtn = document.getElementById('startMicBtn');
   const startTanpuraBtn = document.getElementById('startTanpuraBtn');
   const recordBtn = document.getElementById('recordBtn');
+  const micCheckBtn = document.getElementById('micCheckBtn');
+  const micStatusEl = document.getElementById('micStatus');
   const sessionTimerEl = document.getElementById('sessionTimer');
   const accuracyScoreEl = document.getElementById('accuracyScore');
   const totalMinsDisplay = document.getElementById('totalMinsDisplay');
   const streakCount = document.getElementById('streakCount');
+
+  // ---- Microphone status: a dead mic must never look like a live session ----
+  const setMicStatus = (kind, message) => {
+    if (!micStatusEl) return;
+    micStatusEl.dataset.state = kind;
+    micStatusEl.textContent = message;
+  };
+  const micFailure = (err) => {
+    const msg = (window.GanSiMic && window.GanSiMic.describe)
+      ? window.GanSiMic.describe(err)
+      : 'মাইক্রোফোন চালু করা যায়নি। «মাইক যাচাই» বাটন চাপুন।';
+    setMicStatus('error', '❌ ' + msg);
+    console.warn('[Gan-si] microphone:', (err && (err.name || err.message)) || err);
+    return msg;
+  };
+  const micUiReset = () => {
+    try { stopGuidedPractice(false); } catch (_) {}
+    try { stopRagaLesson(false); } catch (_) {}
+    if (window.__pitchTrail) window.__pitchTrail.stop();
+    releaseWakeLock();
+    if (startMicBtn) {
+      startMicBtn.innerHTML = `${uiIcon('mic')} রেওয়াজ শুরু করুন`;
+      startMicBtn.classList.remove('btn-danger');
+      startMicBtn.classList.add('btn-primary');
+    }
+  };
+  if (window.pitchDetector) {
+    window.pitchDetector.onMicError = (err) => micFailure(err);
+    window.pitchDetector.onMicEnded = () => {
+      micUiReset();
+      setMicStatus('error', '❌ মাইক্রোফোনের সংযোগ বিচ্ছিন্ন হয়েছে। ডিভাইস/অনুমতি যাচাই করে আবার «রেওয়াজ শুরু করুন» চাপুন।');
+    };
+  }
+  if (micCheckBtn) {
+    micCheckBtn.addEventListener('click', async () => {
+      setMicStatus('pending', '⏳ মাইক্রোফোন যাচাই করা হচ্ছে…');
+      const result = window.GanSiMic
+        ? await window.GanSiMic.check()
+        : { ok: false, message: 'মাইক যাচাই মডিউল লোড হয়নি — পেজ রিলোড করুন।' };
+      setMicStatus(result.ok ? 'ok' : 'error', (result.ok ? '✅ ' : '❌ ') + result.message);
+    });
+  }
 
   // Tuning System Select (Shruti vs 12-TET)
   const tuningSelect = document.getElementById('tuningSelect');
@@ -458,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.__pitchTrail) window.__pitchTrail.stop(); // freeze graph
       if (window.__updateTrailSummary) window.__updateTrailSummary();
       releaseWakeLock();
+      setMicStatus('idle', '⏹ মাইক্রোফোন বন্ধ। শুরু করতে «রেওয়াজ শুরু করুন» চাপুন।');
       startMicBtn.innerHTML = `${uiIcon('mic')} রেওয়াজ শুরু করুন`;
       startMicBtn.classList.remove('btn-danger');
       startMicBtn.classList.add('btn-primary');
@@ -472,11 +543,12 @@ document.addEventListener('DOMContentLoaded', () => {
       await pitchDetector.startListening();
       if (window.__pitchTrail) window.__pitchTrail.start(); // resume scrolling
       requestWakeLock();
+      setMicStatus('ok', '✅ মাইক্রোফোন চালু — গাইলে সুরের রেখা ও স্কোর এখানে ধরা পড়বে।');
       startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
       startMicBtn.classList.remove('btn-primary');
       startMicBtn.classList.add('btn-danger');
     } catch (err) {
-      alert(err.message || "মাইক্রোফোন চালু করা যায়নি!");
+      micFailure(err);
     }
   });
 
@@ -909,11 +981,12 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await pitchDetector.startListening();
         requestWakeLock();
+        setMicStatus('ok', '✅ মাইক্রোফোন চালু — লক্ষ্য স্বরটি গাইলে স্কোর বাড়বে।');
         startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
         startMicBtn.classList.remove('btn-primary');
         startMicBtn.classList.add('btn-danger');
       } catch (err) {
-        alert("মাইক্রোফোন চালু করা যায়নি!");
+        micFailure(err);
         return;
       }
     }
@@ -1075,7 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             startMicBtn.classList.remove('btn-primary');
             startMicBtn.classList.add('btn-danger');
           } catch (e) {
-            alert("মাইক্রোফোন অনুমতি ছাড়া রেঞ্জ টেস্ট সম্ভব নয়।");
+            micFailure(e);
             return;
           }
         }
@@ -1212,8 +1285,8 @@ document.addEventListener('DOMContentLoaded', () => {
         startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
         startMicBtn.classList.remove('btn-primary');
         startMicBtn.classList.add('btn-danger');
-      } catch {
-        ragaLessonMessage.textContent = 'মাইক্রোফোন অনুমতি ছাড়া রাগ শিক্ষা শুরু করা যায়নি।';
+      } catch (err) {
+        ragaLessonMessage.textContent = micFailure(err);
         return;
       }
     }
@@ -1490,6 +1563,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Upload only after explicit opt-in.
         if (rec && cloudBackupToggle && cloudBackupToggle.checked) await backupRecording(rec);
         else if (backupStatus) backupStatus.textContent = '🔒 রেকর্ডিং শুধু এই ডিভাইসে সংরক্ষিত হয়েছে।';
+        if (rec) setMicStatus('ok', '✅ রেকর্ডিং এই ডিভাইসে সংরক্ষিত হয়েছে (' + (window.GanSiMic ? window.GanSiMic.bn(blob.size) : blob.size) + ' বাইট)।');
+      } else {
+        const why = window.audioEngine.lastRecordingError
+          ? 'মিডিয়া রেকর্ডার ত্রুটি: ' + window.audioEngine.lastRecordingError
+          : 'কোনো অডিও ধরা পড়েনি — মাইক্রোফোন অনুমতি ও ইনপুট যাচাই করুন।';
+        setMicStatus('error', '❌ রেকর্ডিং খালি ছিল, কিছু সংরক্ষিত হয়নি। ' + why);
+        if (backupStatus) backupStatus.textContent = '⚠️ রেকর্ডিং খালি ছিল — সংরক্ষিত হয়নি।';
       }
     } else {
       let stream = pitchDetector.micStream;
@@ -1497,16 +1577,23 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
           stream = await pitchDetector.startListening();
           requestWakeLock();
+          setMicStatus('ok', '✅ মাইক্রোফোন চালু — রেকর্ডিং শুরু হচ্ছে।');
           startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
           startMicBtn.classList.remove('btn-primary');
           startMicBtn.classList.add('btn-danger');
         } catch (e) {
-          alert("মাইক্রোফোন অনুমতি ছাড়া রেকর্ড করা সম্ভব নয়।");
+          micFailure(e);
+          if (backupStatus) backupStatus.textContent = '⚠️ মাইক্রোফোন না থাকায় রেকর্ডিং শুরু হয়নি।';
           return;
         }
       }
 
-      await window.audioEngine.startRecording(stream);
+      const started = await window.audioEngine.startRecording(stream);
+      if (!started) {
+        setMicStatus('error', '❌ রেকর্ডার শুরু করা যায়নি: ' + (window.audioEngine.lastRecordingError || 'অজানা ত্রুটি') + '। «মাইক যাচাই» চাপুন।');
+        return;
+      }
+      setMicStatus('recording', '⏺ রেকর্ডিং চলছে — থামাতে «রেকর্ডিং থামান» চাপুন।');
       recordBtn.innerHTML = `${uiIcon('stop')} রেকর্ডিং থামান`;
       recordBtn.classList.add('btn-danger');
     }
@@ -1516,6 +1603,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * 17. SESSION STOPWATCH & INTERVAL AUTO-LOGGER
    * ======================================================== */
   let secondsSpent = 0;
+  let noSignalSeconds = 0;
   setInterval(() => {
     if (!pitchDetector.isListening) return;
     secondsSpent++;
@@ -1523,7 +1611,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const s = (secondsSpent % 60).toString().padStart(2, '0');
     if (sessionTimerEl) sessionTimerEl.textContent = `${m}:${s}`;
 
-    if (secondsSpent % 60 === 0) {
+    // A session that is "listening" but never captures a pitch is not a
+    // practice session. Say so plainly instead of silently logging minutes.
+    if (pitchDetector.hasRecentSignal && pitchDetector.hasRecentSignal(6000)) {
+      noSignalSeconds = 0;
+      if (micStatusEl && micStatusEl.dataset.state === 'warn') {
+        setMicStatus('ok', '✅ সুর ধরা পড়ছে — গ্রাফ ও স্কোর হালনাগাদ হচ্ছে।');
+      }
+    } else {
+      noSignalSeconds++;
+      if (noSignalSeconds >= 6 && micStatusEl && micStatusEl.dataset.state !== 'error') {
+        setMicStatus('warn', '⚠️ মাইক চালু আছে, কিন্তু কোনো সুর ধরা পড়ছে না — নীরবতা, ভুল ইনপুট বা অনুমতি যাচাই করতে «মাইক যাচাই» চাপুন।');
+      }
+    }
+
+    // Only count a minute as practiced when the mic actually captured singing.
+    if (secondsSpent % 60 === 0 && (!pitchDetector.hasRecentSignal || pitchDetector.hasRecentSignal(60000))) {
       (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

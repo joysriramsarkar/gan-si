@@ -1,5 +1,5 @@
-/* Gan-si SW v12: network-first app shell; public data SWR; private APIs never cached. */
-const CACHE_VERSION = 'sur-sadhana-v12';
+/* Gan-si SW v13: network-first app shell; public data SWR; private APIs never cached. */
+const CACHE_VERSION = 'sur-sadhana-v13';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -25,6 +25,7 @@ const APP_SHELL = [
   '/js/practice/ear-training.js',
   '/js/ui/auth.js',
   '/js/ui/numbers.js',
+  '/js/ui/mic-status.js',
   '/numbers-repair.js',
   '/js/ui/pitch-trail.js',
   '/js/ui/music-data.js',

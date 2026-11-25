@@ -7,6 +7,7 @@
   <meta name="description" content="লাইভ ভোকাল পিচ ট্রেইনার, অ্যাকোস্টিক তানপুরা, ভার্চুয়াল হারমোনিয়াম, তবলা তাল ও অলংকার সাধনা প্ল্যাটফর্ম।">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#f5f2ec">
+  <meta name="gansi-version" content="2.6.0">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/main.css">
   <link rel="stylesheet" href="css/themes.css">
@@ -94,6 +95,7 @@
 
   <!-- Main Content Container -->
   <main class="app-container">
+    <div id="versionNotice" class="version-notice" role="status" aria-live="polite" hidden></div>
 
     <!-- 1. LIVE PITCH TRAINER TAB -->
     <section id="tab-pitch" class="tab-panel active" role="tabpanel" aria-labelledby="tabbtn-pitch" tabindex="0">
@@ -131,8 +133,12 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> লাইভ ভোকাল পিচ মনিটর</div>
-            <button id="startMicBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> রেওয়াজ শুরু করুন</button>
+            <div class="mic-controls">
+              <button id="micCheckBtn" class="btn-outline" type="button" title="মাইক্রোফোন অনুমতি ও ডিভাইস যাচাই করুন"><svg class="icon" aria-hidden="true"><use href="/icons.svg#info"></use></svg> মাইক যাচাই</button>
+              <button id="startMicBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> রেওয়াজ শুরু করুন</button>
+            </div>
           </div>
+          <div id="micStatus" class="mic-status" data-state="idle" role="status" aria-live="polite">⏹ মাইক্রোফোন বন্ধ। গাইতে «রেওয়াজ শুরু করুন» চাপুন; সমস্যা হলে «মাইক যাচাই»।</div>
 
           <!-- Hero Pitch Box -->
           <div class="pitch-hero" id="pitchHero">
@@ -591,6 +597,7 @@
   <script src="js/ui/auth.js"></script>
   <script src="numbers-repair.js"></script>
   <script src="js/ui/numbers.js"></script>
+  <script src="js/ui/mic-status.js"></script>
   <script src="js/ui/pitch-trail.js"></script>
   <script src="js/ui/music-data.js"></script>
   <script src="js/practice/ear-training.js"></script>

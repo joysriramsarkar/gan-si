@@ -220,7 +220,43 @@ input[type="checkbox"] { accent-color: var(--primary); width: 18px; height: 18px
 .form-group label { font-size: .78rem; color: var(--text-muted); }
 .form-group select, .form-group input[type="range"] { background: var(--surface-container); border-color: var(--outline); border-radius: 12px; }
 
+/* Stale-tab notice: an old cached bundle must never look like a working app. */
+.version-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding: 11px 15px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-radius: 14px;
+  font-size: .82rem;
+  line-height: 1.5;
+}
+.version-notice[hidden] { display: none; }
+.version-notice button { min-height: 34px; padding: 6px 13px; border-radius: 10px; font-size: .78rem; }
+
 /* Pitch monitor */
+.mic-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.mic-status {
+  margin: -6px 0 18px;
+  padding: 10px 14px;
+  border-radius: 13px;
+  font-size: .8rem;
+  line-height: 1.55;
+  border: 1px solid var(--border-color);
+  background: var(--surface-container);
+  color: var(--text-muted);
+}
+.mic-status[data-state="ok"] { background: var(--accent-green-container); border-color: color-mix(in srgb, var(--accent-green) 35%, transparent); color: var(--accent-green); }
+.mic-status[data-state="warn"] { background: var(--primary-container); border-color: color-mix(in srgb, var(--primary) 35%, transparent); color: var(--on-primary-container); }
+.mic-status[data-state="error"] { background: var(--accent-red-container); border-color: color-mix(in srgb, var(--accent-red) 35%, transparent); color: var(--accent-red); }
+.mic-status[data-state="recording"] { background: var(--accent-red-container); border-color: var(--accent-red); color: var(--accent-red); font-weight: 700; }
+.mic-status[data-state="pending"] { background: var(--surface-container); color: var(--text-main); }
+@media (max-width: 640px) { .mic-controls { width: 100%; } .mic-controls .btn-primary, .mic-controls .btn-outline { flex: 1 1 auto; } }
 .studio-ambience-bar {
   display: flex;
   align-items: center;
