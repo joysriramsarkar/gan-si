@@ -4,6 +4,7 @@
  */
 (function () {
   async function fetchStats(range) {
+    if (window.GANSI_STATIC_MODE) return null; // dashboard shows "--" honestly
     try {
       const f = window.GanSiAuth ? window.GanSiAuth.fetch : fetch;
       const r = await f('/api/stats' + (range && range !== 'all' ? `?range=${range}` : ''));
@@ -73,7 +74,7 @@
     try {
       const data = window.GanSiMusicData
         ? await window.GanSiMusicData.loadDocument('/api/theory', '/data/theory.json')
-        : await fetch('/api/theory').then(r => r.json());
+        : await fetch(window.GANSI_STATIC_MODE ? '/data/theory.json' : '/api/theory').then(r => r.json());
       const badge = document.getElementById('theoryVerifiedBadge');
       if (badge) badge.textContent = data.verified ? 'যাচাইকৃত' : 'শিক্ষক-যাচাই বাকি — সহায়ক পাঠ্য';
       list.innerHTML = '';

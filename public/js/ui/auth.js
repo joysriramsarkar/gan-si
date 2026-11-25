@@ -40,6 +40,10 @@
     const el = document.getElementById('accountStatus');
     const nameEl = document.getElementById('accountName');
     if (!el) return;
+    if (window.GANSI_STATIC_MODE) {
+      el.textContent = '🔌 স্থানীয় মোড (এই সাইটে কোনো সার্ভার নেই; তথ্য শুধু এই ডিভাইসে)';
+      return;
+    }
     const t = token();
     if (!t) {
       el.textContent = '🔌 স্থানীয় মোড (ব্যক্তিগত ডিভাইস)';
@@ -61,6 +65,13 @@
     if (btn) {
       btn.addEventListener('click', async () => {
         const name = (document.getElementById('accountName').value || 'local').trim();
+        if (window.GANSI_STATIC_MODE) {
+          const status = document.getElementById('accountStatus');
+          btn.textContent = '—';
+          if (status) status.textContent = '🔌 এই সাইটে অ্যাকাউন্ট সার্ভার নেই; স্থানীয় মোড চালু আছে।';
+          setTimeout(() => { btn.textContent = 'সংরক্ষণ'; }, 1500);
+          return;
+        }
         btn.textContent = '...';
         try {
           await ensureUser(name);
@@ -83,7 +94,7 @@
         // Revoke server-side first so the token dies even if a copy leaks;
         // local state is cleared either way.
         try {
-          await apiFetch('/api/users/logout', { method: 'POST' });
+          if (!window.GANSI_STATIC_MODE) await apiFetch('/api/users/logout', { method: 'POST' });
         } catch {}
         clearSession();
         const nameEl = document.getElementById('accountName');

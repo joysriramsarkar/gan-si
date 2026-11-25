@@ -17,14 +17,20 @@
 
 ## স্বয়ংক্রিয় যাচাই (সংগীততাত্ত্বিক সত্য নয়)
 ```powershell
-npm test -- --runInBand   # 17 suite / 92 test
+npm test -- --runInBand   # 18 suite / 95 test
 npm run validate:ragas    # 10 ragas structural validation
 npm run validate:alankars # 7 alankars structural validation
 npm run test:browser      # 24 Playwright test
 node scripts/smoke.cjs    # isolated temporary DB/uploads
 node scripts/smoke-auth.cjs
 ```
-Fresh Lighthouse (2026-11-25, v2.6.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+Fresh Lighthouse (2026-11-25, v2.7.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+
+## Vercel ডেপ্লয়মেন্ট (v2.7.0)
+- `500 FUNCTION_INVOCATION_FAILED` এর কারণ: `server.js`-এ `app.listen()` + `node:sqlite` + writable `./data`/`./uploads` — Vercel Function read-only ও handler-ভিত্তিক; কোনো `vercel.json` না থাকায় Vercel নিজেই `server.js`-কে function বানিয়েছিল।
+- সমাধান: `vercel.json` → **pure static** (`framework: null`, `outputDirectory: public`, `buildCommand: sync:data && mark:static`); কোনো `api/` ফোল্ডার, `rewrites`, `functions` বা `builds` নেই → invocation-এর পথই নেই। `GANSI_STATIC_MODE` ফ্ল্যাগে `/api/*` কল বন্ধ, সরাসরি bundled `/data/*.json` (১০ রাগ / ৭ অলংকার / ১০ অধ্যায়) → console-এ কোনো ৪০৪ নেই। বিস্তারিত `docs/DEPLOY-VERCEL.md`।
+- `tests/vercel.test.js`: static-only কনফিগ, `api/` অনুপস্থিত, bundled ডেটা parse, version-meta ↔ package version মিল, static-mode flag (লোকাল `false` / Vercel `true`), SW private-API no-cache — হার্ডওয়্যার-নিরপেক্ষ যাচাই।
+- Vercel-এ ব্যক্তিগত stats/recordings/account শুধু ব্রাউজারে (IndexedDB); মিথ্যা «সংরক্ষিত» কখনো দেখানো হয় না।
 
 ## মাইক / রেকর্ডিং ডায়াগনসিস (v2.6.0)
 - এই মেশিনে যাচাইকৃত root cause: `navigator.permissions.query({name:'microphone'})` → **`denied`**, `getUserMedia` ব্যর্থ → কোনো পিচ নমুনা/ট্রেইল/স্কোর/রেকর্ডিং তৈরি হয়নি। অনুমতি শুধু ব্রাউজার সেটিংস থেকে মানুষের দেওয়া যায়; অ্যাপ প্রোগ্রাম্যাটিকভাবে চাইতে পারে না।
@@ -43,4 +49,4 @@ Fresh Lighthouse (2026-11-25, v2.6.0): Accessibility / SEO / Best Practices = **
 ## Bengali digit regression contract
 - DOM text, dynamic mutation, native select option label, `title`, `aria-label`, `placeholder` visible digit বাংলায় দেখাবে।
 - `input/select` value, `data-*`, IDs, URL, API payload ASCII থাকবে।
-- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v13 migration test হয়।
+- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v14 migration test হয়।

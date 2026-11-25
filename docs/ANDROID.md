@@ -1,6 +1,6 @@
 # Android App — Build ও Device Test Report
 
-> **Status (2026-11-25, এই মেশিনে যাচাইকৃত):** ✅ v2.6.0 (versionCode 12) `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (5,403,396 bytes ≈ 5.15MB)
+> **Status (2026-11-25, এই মেশিনে যাচাইকৃত):** ✅ v2.7.0 (versionCode 13) `assembleDebug` BUILD SUCCESSFUL → `android/app/build/outputs/apk/debug/app-debug.apk` (5,426,027 bytes ≈ 5.17MB)
 
 ## পরিবেশ (যাচাইকৃত)
 - Java: Temurin 21.0.11 (LTS)
@@ -23,7 +23,7 @@ npm run android:build
 - Minimalist Material UI: warm paper surfaces, clay accent, soft elevation, reusable SVG icons
 - Sticky pill tabs, mobile-safe header, stacked recording rows, contained modals
 - Default Paper theme + Gold/Sunset/Wood/optional Dark; theme-aware pitch canvas
-- SW v13 network-first + one-time migration reload: bundled raga/alankar/theory offline fallback; stats/users/recordings কখনো cache নয়
+- SW v14 network-first + one-time migration reload: bundled raga/alankar/theory offline fallback; stats/users/recordings কখনো cache নয়
 - v2.5 দুই-প্যানেল পিচ গ্রাফ: উপরে স্বর-ট্রেইল (মসৃণ, সেন্ট-গ্রেডেড, ধাপ-লক্ষ্য, হোল্ড লেবেল), নিচে ±৫০ সেন্ট বিচ্যুতি রিবন; PNG এক্সপোর্ট সম্পূর্ণ স্থানীয়
 - v2.6 মাইক ডায়াগনসিস: `#micStatus` + «মাইক যাচাই» (`GanSiMic.check/describe`), অনুমতি denied/ডিভাইস নেই/ব্যস্ত — সব কারণ বাংলায় inline; track-ended-এ ghost session ভাঙা; পুরোনো bundle-এ reload নোটিশ
 - `npm run sync:data` canonical `data/*.json` → `public/data/*.json`; Android build স্বয়ংক্রিয়ভাবে sync করে

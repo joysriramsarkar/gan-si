@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // which looks like "nothing works". Compare the bundled version with the
   // server's health endpoint and offer a one-click reload (offline = silent).
   (() => {
+    if (window.GANSI_STATIC_MODE) return; // no backend to compare against
     const meta = document.querySelector('meta[name="gansi-version"]');
     const notice = document.getElementById('versionNotice');
     if (!meta || !notice) return;
@@ -312,6 +313,7 @@ document.addEventListener('DOMContentLoaded', () => {
    * 3. STATS & DAILY STREAK INITIALIZATION
    * ======================================================== */
   const loadUserStats = async () => {
+    if (window.GANSI_STATIC_MODE) return; // personal stats stay in this device
     try {
       const res = await (window.GanSiAuth ? window.GanSiAuth.fetch('/api/stats') : fetch('/api/stats'));
       if (res.ok) {
@@ -1094,7 +1096,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const items = window.GanSiMusicData
         ? await window.GanSiMusicData.loadCollection('/api/alankars', '/data/alankars.json', 'alankars')
-        : await fetch('/api/alankars').then(r => r.json()).then(d => d.alankars || []);
+        : await fetch(window.GANSI_STATIC_MODE ? '/data/alankars.json' : '/api/alankars')
+            .then(r => r.json()).then(d => Array.isArray(d) ? d : (d.alankars || []));
       renderAlankars(items.length ? items : defaultAlankars);
     } catch { renderAlankars(defaultAlankars); }
   };
@@ -1454,7 +1457,8 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const items = window.GanSiMusicData
         ? await window.GanSiMusicData.loadCollection('/api/ragas', '/data/ragas.json', 'ragas')
-        : await fetch('/api/ragas').then(r => r.json()).then(d => d.ragas || []);
+        : await fetch(window.GANSI_STATIC_MODE ? '/data/ragas.json' : '/api/ragas')
+            .then(r => r.json()).then(d => Array.isArray(d) ? d : (d.ragas || []));
       renderRagas(items);
     } catch { console.warn('Could not load raga data'); }
   };
@@ -1473,6 +1477,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const backupRecording = async (rec) => {
     if (!rec || !rec.blob) return false;
+    if (window.GANSI_STATIC_MODE) {
+      if (backupStatus) backupStatus.textContent = '🔒 এই সাইটে সার্ভার ব্যাকআপ নেই; রেকর্ডিং শুধু আপনার ডিভাইসে সংরক্ষিত আছে।';
+      return false;
+    }
     if (backupStatus) backupStatus.textContent = '☁️ ব্যাকআপ আপলোড হচ্ছে…';
     try {
       const ext = recordingExtension(rec.mimeType || rec.blob.type);
@@ -1626,7 +1634,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Only count a minute as practiced when the mic actually captured singing.
-    if (secondsSpent % 60 === 0 && (!pitchDetector.hasRecentSignal || pitchDetector.hasRecentSignal(60000))) {
+    if (!window.GANSI_STATIC_MODE && secondsSpent % 60 === 0 && (!pitchDetector.hasRecentSignal || pitchDetector.hasRecentSignal(60000))) {
       (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
