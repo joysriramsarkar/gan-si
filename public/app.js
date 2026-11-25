@@ -78,6 +78,19 @@ const RiyazIDB = {
 document.addEventListener('DOMContentLoaded', () => {
   const uiIcon = (name) => `<svg class="icon" aria-hidden="true"><use href="/icons.svg#${name}"></use></svg>`;
 
+  // Recover a browser that was previously stuck on an HTML bundle without
+  // number localization. One reload after installation is sufficient and is
+  // ignored while the document is loading, so first visit has no reload loop.
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      const type = event.data?.type;
+      if ((type !== 'GANSI_REFRESH' && type !== 'GANSI_REFRESH_REQUIRED') || document.readyState !== 'complete') return;
+      if (sessionStorage.getItem('gansi-sw-refresh') === event.data.version) return;
+      sessionStorage.setItem('gansi-sw-refresh', event.data.version);
+      location.reload();
+    });
+  }
+
   // PWA Service Worker Registration
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});

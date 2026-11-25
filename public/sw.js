@@ -1,5 +1,5 @@
-/* Gan-si SW v7: network-first app shell; public data SWR; private APIs never cached. */
-const CACHE_VERSION = 'sur-sadhana-v7';
+/* Gan-si SW v8: network-first app shell; public data SWR; private APIs never cached. */
+const CACHE_VERSION = 'sur-sadhana-v8';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -25,6 +25,7 @@ const APP_SHELL = [
   '/js/practice/ear-training.js',
   '/js/ui/auth.js',
   '/js/ui/numbers.js',
+  '/numbers-repair.js',
   '/js/ui/music-data.js',
   '/js/ui/progress.js',
   '/icon-192.png',
@@ -40,7 +41,35 @@ const DATA_URLS = ['/api/ragas', '/api/alankars', '/api/theory'];
 const PRIVATE_API_URLS = ['/api/stats', '/api/recordings', '/api/users', '/api/me', '/api/upload'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE_VERSION).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+  const install = caches.open(CACHE_VERSION).then((c) => c.addAll(APP_SHELL));
+  if (!self.__gansiRefreshArmed) {
+    self.__gansiRefreshArmed = true;
+    event.waitUntil((async () => {
+      const controlled = await self.clients.matchAll({ type: 'window' });
+      if (!controlled.length) return;
+      const oldCache = await caches.open(CACHE_VERSION);
+      const oldHtml = await oldCache.match('/index.html');
+      if (!oldHtml) return;
+      const html = await oldHtml.text();
+      if (!html.includes('numbers-repair.js')) {
+        self.__gansiRefreshRequired = true;
+        for (const client of controlled) client.postMessage({ type: 'GANSI_REFRESH_REQUIRED', version: CACHE_VERSION });
+      }
+    })());
+  }
+
+  event.waitUntil(
+    install.then(() => self.skipWaiting()).then(() => {
+      // If the controlling SW served a cached HTML document that does not
+      // include the current JS, navigating can finish before the updated
+      // shell cache is ready. Signal open clients to reload into the fresh
+      // document once. This repair is not used for normal updates.
+      if (!self.__gansiRefreshRequired) return;
+      return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) client.postMessage({ type: 'GANSI_REFRESH', version: CACHE_VERSION });
+      });
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {

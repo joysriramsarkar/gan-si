@@ -1,4 +1,4 @@
-# Gan-si Technical Master Plan v1.0 — বাস্তবায়ন চলমান (v2.2.1)
+# Gan-si Technical Master Plan v1.0 — বাস্তবায়ন চলমান (v2.2.2)
 > সুর সাধনা Pro — ভারতীয় শাস্ত্রীয় ও বাংলা সংগীত শেখার পূর্ণাঙ্গ সাধনা-প্ল্যাটফর্ম
 > Repo: `joysriramsarkar/gan-si` | তারিখ: 2026-11-25 | ভিত্তি: বর্তমান `server.js`, `public/app.js`, `audio-engine.js`, `pitch-detector.js`
 >

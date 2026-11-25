@@ -6,8 +6,9 @@
 
 ## 🌟 নতুন ও উন্নত বৈশিষ্ট্যসমূহ (Next-Gen Features)
 
-### v2.2.1 — Bengali digits ও layout fixes
-- **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz ও date—ASCII digit দেখাবে না; form/API value ASCII-ই থাকে।
+### v2.2.2 — Bengali digits ও cache fixes
+- **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz, date এবং select option label; ASCII digit দৃশ্যমান হয় না, form/API value ASCII-ই থাকে।
+- **🔄 SW v8 cache repair:** পুরোনো cached HTML-এ নতুন localization script না থাকলেও নতুন SW installation সব App Shell asset cache-diplোম করে reload নিশ্চিত করে।
 - **🪕 Tanpura spacing fix:** চারটি string label responsive grid-এ; mobile-এ ২×২, desktop-এ ৪ কলাম—overlap হয় না।
 - **🎨 নতুন ডিজাইন:** warm paper background, white matte cards, clay accent, soft elevation; generic black/neon look সরানো হয়েছে।
 - **🧭 Consistent iconography:** reusable SVG icon set; header, tabs, cards, buttons ও recording actions একই visual language-এ।
@@ -22,7 +23,7 @@
 - **♿ Accessibility:** pinch-zoom আবার চালু, সব form control-এ label, keyboard-driven tabs (`←/→/Home/End`), duplicate ID বন্ধ, improved contrast।
 - **🐛 C-scale fix:** `সা = C` এখন ভুল করে A# হয়ে যায় না; practice accuracy প্রতি mic session-এ reset হয়।
 - **📦 Native offline content:** রাগ/অলংকার/তত্ত্বের bundled fallback থাকায় backend ছাড়াই Android/PWA-এ শিক্ষা-content খোলে।
-- **🔄 Stale UI fix:** SW v7 network-first—কিছুক্ষণ পর পুরোনো cached HTML/JS/CSS আর UI নষ্ট করবে না।
+- **🔄 Stale UI fix:** SW v8 network-first + install-time refresh—পুরোনো cached HTML/JS/CSS আর UI নষ্ট করবে না।
 
 ### মূল স্যুট
 
@@ -113,7 +114,7 @@ npm run test:browser  # 16 headless-Chrome specs (tabs, theory, generator, ear, 
 
 ## 📱 Android / PWA
 
-`docs/ANDROID.md` দেখুন (Capacitor config + অডিও পরীক্ষা-তালিকা)। আইকন (`icon-192/512.png`) ও SW v7 network-first strategy সহ installable PWA; Android version 2.2.1 (code 5)। রাগ/অলংকার/তত্ত্বের bundled fallback থাকায় backend ছাড়াও Native-এ শিক্ষা-content খোলে।
+`docs/ANDROID.md` দেখুন (Capacitor config + অডিও পরীক্ষা-তালিকা)। আইকন (`icon-192/512.png`) ও SW v8 network-first strategy সহ installable PWA; Android version 2.2.2 (code 6)। রাগ/অলংকার/তত্ত্বের bundled fallback থাকায় backend ছাড়াও Native-এ শিক্ষা-content খোলে।
 
 ## ✅ সংগীততাত্ত্বিক যাচাই
 

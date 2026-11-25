@@ -9,9 +9,6 @@
   const TEXT_ATTRIBUTES = ['title', 'aria-label', 'placeholder'];
 
   function toBengaliDigits(value) {
-    // Every ASCII digit in visible text localizes, including inside tokens
-    // like note names (A4 -> A৪): the note letter stays Latin, the digit is
-    // read by Bengali users as a number.
     return String(value ?? '').replace(/[0-9]/g, (digit) => BN_DIGITS[Number(digit)]);
   }
 
@@ -50,39 +47,111 @@
     const walker = document.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
       acceptNode(node) {
         if (node.nodeType === 3) return shouldSkip(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
-        return SKIP_TEXT_TAGS.has(node.tagName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+        // Traverse native controls too. Values and numeric attributes stay
+        // ASCII; only user-visible text is localized.
+        return !SKIP_ATTRIBUTE_TAGS.has(node.tagName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
       }
     });
     let current = walker.currentNode;
     while ((current = walker.nextNode())) {
       if (current.nodeType === 3) localizeTextNode(current);
       else localizeElementAttributes(current);
+      if (current.nodeType === 1 && current.tagName === 'SELECT') {
+        for (const option of current.options) {
+          if (option.firstChild?.nodeType === 3) localizeTextNode(option.firstChild);
+        }
+      }
     }
   }
 
-  function start() {
-    if (!document.body || root.__gansiNumberObserver) return;
-    localizeTree(document.body);
-    const observer = new MutationObserver(mutations => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'characterData') localizeTextNode(mutation.target);
-        if (mutation.type === 'attributes') localizeElementAttributes(mutation.target);
-        for (const node of mutation.addedNodes) localizeTree(node);
-      }
+  function refreshControllerScript() {
+    return new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = '/numbers-repair.js?' + Date.now();
+      script.async = false;
+      const finish = () => {
+        root.__gansiNumbersControllerLoaded = true;
+        script.remove();
+        resolve(true);
+      };
+      script.onerror = () => {
+        script.remove();
+        resolve(false);
+      };
+      script.addEventListener('load', finish, { once: true });
+      document.head.appendChild(script);
     });
-    observer.observe(document.body, {
-      subtree: true,
-      childList: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: TEXT_ATTRIBUTES
-    });
-    root.__gansiNumberObserver = observer;
   }
 
-  const api = { toBengaliDigits, localizeTree, start };
+  function requestAppShellRefresh(reason) {
+    if (root.__gansiAppShellRefreshPending) return true;
+    root.__gansiAppShellRefreshPending = true;
+    const script = document.createElement('script');
+    script.src = '/js/ui/numbers.js?' + encodeURIComponent(reason || 'refresh');
+    script.async = false;
+    const finish = () => {
+      script.remove();
+      root.__gansiAppShellRefreshPending = false;
+    };
+    script.onerror = finish;
+    document.head.appendChild(script);
+    script.addEventListener('load', finish, { once: true });
+    return true;
+  }
+
+  function start() {
+    if (!document.body) return;
+    const missingScript = !root.GanSiNumbers;
+    localizeTree(document.body);
+    if (!root.__gansiNumberObserver) {
+      const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'characterData') localizeTextNode(mutation.target);
+          if (mutation.type === 'attributes') localizeElementAttributes(mutation.target);
+          for (const node of mutation.addedNodes) localizeTree(node);
+        }
+      });
+      observer.observe(document.body, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: TEXT_ATTRIBUTES
+      });
+      root.__gansiNumberObserver = observer;
+    }
+
+    if (typeof document === 'undefined') return;
+    if (missingScript) requestAppShellRefresh('numbers-refresh');
+    if (document.readyState === 'loading') {
+      const controller = new AbortController();
+      root.__gansiNumbersControllerLoaded = false;
+      const retry = setTimeout(() => {
+        if (document.readyState === 'loading') return;
+        start();
+        controller.abort();
+        if (!root.__gansiNumbersControllerLoaded) refreshControllerScript();
+      }, 1500);
+      const onReady = () => {
+        start();
+        // Cached HTML may omit this initial repair script too. Ensure the
+        // app's DOMContentLoaded listeners always have an active observer.
+        if (!root.__gansiNumbersControllerLoaded) refreshControllerScript();
+      };
+      document.addEventListener('DOMContentLoaded', onReady, { once: true });
+      controller.signal.addEventListener('abort', () => {
+        clearTimeout(retry);
+        document.removeEventListener('DOMContentLoaded', onReady);
+      }, { once: true });
+    } else {
+      if (missingScript && !root.__gansiNumbersControllerLoaded) refreshControllerScript();
+    }
+  }
+
+  const api = { toBengaliDigits, localizeTree, start, requestAppShellRefresh };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.GanSiNumbers = api;
+
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
     else start();
