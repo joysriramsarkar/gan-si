@@ -20,13 +20,18 @@
 npm test -- --runInBand   # 17 suite / 92 test
 npm run validate:ragas    # 10 ragas structural validation
 npm run validate:alankars # 7 alankars structural validation
-npm run test:browser      # 16 Playwright test
+npm run test:browser      # 19 Playwright test
 node scripts/smoke.cjs    # isolated temporary DB/uploads
 node scripts/smoke-auth.cjs
 ```
-Fresh Lighthouse (2026-11-25, v2.4.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+Fresh Lighthouse (2026-11-25, v2.5.0): Accessibility / SEO / Best Practices = **100 / 100 / 100**।
+
+## গ্রাফ রিগ্রেশন (v2.5.0)
+- ফিক্সড `baseMidi±12` দুই-সপ্তক গ্রিড + নিচে ±৫০ সেন্ট রিবন; ভিউপোর্ট ≤৬৪০px-এ ক্যানভাস ৩৬০px, নইলে ৪০০px।
+- `stop()` ফ্রিজ, `push()` auto-resume, `setTarget()` ধাপ-ইতিহাস, `exportPNG()` স্থানীয় ডাউনলোড (কোনো আপলোড নয়)।
+- স্ক্রিন-রিডারের জন্য `#trailSummary` (aria-live) থিম/স্টপ/ক্লিয়ারে হালনাগাদ হয়; সব canvas সংখ্যা বাংলা অঙ্কে।
 
 ## Bengali digit regression contract
 - DOM text, dynamic mutation, native select option label, `title`, `aria-label`, `placeholder` visible digit বাংলায় দেখাবে।
 - `input/select` value, `data-*`, IDs, URL, API payload ASCII থাকবে।
-- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v11 migration test হয়।
+- Browser regression-এ timer/streak/BPM/frequency/piano note/select label scan হয়; পুরোনো HTML cache থেকে `numbers.js` বাদ পড়লে repair bootstrap + SW v12 migration test হয়।

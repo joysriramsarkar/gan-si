@@ -254,3 +254,90 @@ test('raga and theory data load from bundled fallback when API is offline', asyn
   await page.click('.tab-btn[data-tab="tab-theory"]');
   await expect(page.locator('#theoryList > div')).toHaveCount(10);
 });
+
+test('pitch trail: two panels, stepped targets, freeze, toolbar and local PNG export', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.__pitchTrail);
+  const result = await page.evaluate(() => {
+    const tr = window.__pitchTrail;
+    tr.clear();
+    tr.setBaseMidi(48);
+    tr.setWindow(15000);
+    tr.setTarget(48, 12);
+    for (let i = 0; i < 12; i++) tr.push({ midi: 48 + Math.sin(i / 3) * 0.02, inTune: true, cents: 3 });
+    tr.setTarget(55, 12);
+    for (let i = 0; i < 12; i++) tr.push({ midi: 55 + Math.sin(i / 3) * 0.02, inTune: false, cents: 30 });
+    const st = tr.stats();
+    const pngLen = tr.exportPNG();
+    const targets = tr.targetHistory().map(e => e.midi);
+    tr.stop();
+    const canvas = document.querySelector('#pitchCanvas');
+    return {
+      count: st.count,
+      accuracy: st.accuracy,
+      pngLen,
+      targets,
+      liveAfterStop: tr.isLive(),
+      summary: document.querySelector('#trailSummary').textContent,
+      canvasHeight: canvas.height / (devicePixelRatio || 1),
+      ribbonToken: getComputedStyle(document.documentElement).getPropertyValue('--chart-ribbon').trim()
+    };
+  });
+  expect(result.count).toBeGreaterThan(20);
+  expect(result.accuracy).toBeGreaterThan(0);
+  expect(result.pngLen).toBeGreaterThan(1000);          // local PNG, no upload
+  expect(result.targets).toContain(55);                // stepped target history
+  expect(result.liveAfterStop).toBe(false);            // freeze semantics preserved
+  expect(result.summary).toContain('নমুনা');            // screen-reader summary refreshed on stop
+  expect(result.canvasHeight).toBe(400);
+  expect(result.ribbonToken).not.toBe('');             // cents ribbon is themed
+  // New pitch auto-resumes (guided / raga paths).
+  expect(await page.evaluate(() => {
+    window.__pitchTrail.push({ midi: 50, inTune: true, cents: 0 });
+    return window.__pitchTrail.isLive();
+  })).toBe(true);
+  // Toolbar controls stay wired.
+  await page.click('#trailHoldsBtn');
+  await expect(page.locator('#trailHoldsBtn')).toHaveAttribute('aria-pressed', 'false');
+  await page.click('#trailHoldsBtn');
+  await page.click('#trailClearBtn');
+  await expect(page.locator('#trailStatus')).toContainText('মোছা');
+  await expect(page.locator('#trailSummary')).toContainText('খালি');
+});
+
+test('pitch trail repaints when the theme switches', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.__pitchTrail);
+  const pixel = () => page.evaluate(() => {
+    const c = document.querySelector('#pitchCanvas');
+    const dpr = window.devicePixelRatio || 1;
+    const d = c.getContext('2d').getImageData(Math.floor(200 * dpr), Math.floor(100 * dpr), 1, 1).data;
+    return [d[0], d[1], d[2]];
+  });
+  const light = await pixel();
+  await page.selectOption('#themeSelect', 'dark');
+  await page.waitForTimeout(250);
+  const dark = await pixel();
+  expect(dark).not.toEqual(light);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--chart-ribbon').trim())).toBe('#14181b');
+});
+
+test('pitch trail two-panel layout fits a 390px mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForFunction(() => !!window.__pitchTrail);
+  const info = await page.evaluate(() => {
+    const r = document.querySelector('#pitchCanvas').getBoundingClientRect();
+    return {
+      height: r.height,
+      right: r.right,
+      docWidth: document.documentElement.scrollWidth,
+      viewport: innerWidth,
+      buttons: document.querySelectorAll('.pitch-trail-toolbar button').length
+    };
+  });
+  expect(info.height).toBe(360);
+  expect(info.docWidth).toBeLessThanOrEqual(info.viewport);
+  expect(info.right).toBeLessThanOrEqual(info.viewport);
+  expect(info.buttons).toBeGreaterThanOrEqual(7);
+});

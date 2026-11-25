@@ -1,13 +1,15 @@
-/* Gan-si Pitch Trail — polished two-octave sadhana graph.
-   Fixed Sa-anchored grid (Mandra Sa .. Tara Sa), smooth pitch curve with
-   silence breaks, cents-graded colour, target band, hover readout,
-   theme-aware stats card. All canvas numbers use Bengali digits.
-   API: create(canvas, { height }) -> { push, setTarget, setBaseMidi,
-   setWindow, resetView, start, stop, clear, resize, draw, stats,
-   history, isLive } — start/stop freeze semantics kept from v2.3.2. */
+/* Gan-si Pitch Trail — two-panel sadhana graph (v2.5).
+   Top: fixed Sa-anchored two-octave swara grid with a smooth, cents-graded
+   pitch curve, stepped target history, stable-note hold labels, hover readout.
+   Bottom: a ±50 cents deviation ribbon so "how in tune" is readable at a glance.
+   All canvas numbers use Bengali digits. start()/stop() freeze semantics kept.
+   API: { push, setTarget, setBaseMidi, setWindow, resetView, setHolds,
+          exportPNG, describe, start, stop, clear, resize, draw, stats,
+          history, isLive } */
 (function (root) {
   const HISTORY_MS = 60000;
-  const GAP_MS = 420; // silence longer than this breaks the line
+  const GAP_MS = 420;        // silence longer than this breaks the line
+  const CENTS_MAX = 50;      // ribbon vertical scale
   const BN_DIGITS = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
   const NOTE_STRINGS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const SARGAM_SHORT = ['সা', 'রে♭', 'রে', 'গা♭', 'গা', 'মা', 'মা♯', 'পা', 'ধা♭', 'ধা', 'নি♭', 'নি'];
@@ -15,22 +17,24 @@
   const GRID_LEFT = 98;
   const GRID_RIGHT = 14;
   const GRID_TOP = 20;
-  const GRID_BOTTOM = 38;
+  const TIME_AXIS_H = 20;
+  const RIBBON_H = 54;
+  const RIBBON_GAP = 10;
+  const BOTTOM_PAD = 8;
 
   function toBn(value) {
     return String(value ?? '').replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
   }
   function westernName(midi) {
     const idx = ((midi % 12) + 12) % 12;
-    const octave = Math.floor(midi / 12) - 1;
-    return NOTE_STRINGS[idx] + toBn(octave);
+    return NOTE_STRINGS[idx] + toBn(Math.floor(midi / 12) - 1);
   }
   function signedBn(n) {
     const v = Math.round(Number(n) || 0);
-    return (v > 0 ? '+' : '') + toBn(v);
+    return (v > 0 ? '+' : v < 0 ? '−' : '') + toBn(Math.abs(v));
   }
-  // Parse #rgb/#rrggbb/rgb()/rgba() into channels so alpha variants work
-  // for every theme token (hex concat like color+'55' breaks on rgb()).
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  // Parse #rgb/#rrggbb/rgb()/rgba() so alpha variants work for every theme token.
   function parseColor(str, fallback) {
     const s = String(str || fallback || '#000000').trim();
     let m = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -46,27 +50,38 @@
     }
     return parseColor(fallback || '#000000');
   }
-  function rgba(c, alpha) {
-    return `rgba(${c.r | 0},${c.g | 0},${c.b | 0},${alpha})`;
-  }
+  function rgba(c, alpha) { return `rgba(${c.r | 0},${c.g | 0},${c.b | 0},${alpha})`; }
+
+  // Vertical geometry, derived from canvas height so both panels stay in sync.
+  function plotBottom(h) { return h - TIME_AXIS_H - RIBBON_GAP - RIBBON_H - BOTTOM_PAD; }
+  function ribbonTop(h) { return h - RIBBON_H - BOTTOM_PAD; }
+  function ribbonBottom(h) { return h - BOTTOM_PAD; }
+  function ribbonZero(h) { return ribbonTop(h) + RIBBON_H / 2; }
 
   function createPitchTrail(canvas, options) {
     const ctx = canvas.getContext('2d');
     const opts = options || {};
-    const history = []; // { t, midi|null, inTune, cents }
+    const history = [];        // { t, midi|null, inTune, cents }
+    const targetEvents = [];   // { t, midi|null, tol } — stepped target history
     let view = { zoom: 1, pan: 0 };
     let baseWindowMs = HISTORY_MS;
     let running = false;
     let raf = null;
-    let frozenEnd = null; // set on stop(): window freezes, graph must not scroll
+    let hidden = false;
+    let frozenEnd = null;      // set on stop(): time window freezes
     let targetMidi = null;
     let targetTolerance = 12;
     let baseMidi = 60;
-    let hover = null; // { x, y, s }
+    let showHolds = true;
+    let hover = null;
     let dragging = false;
     let lastX = 0;
+    const pointers = new Map();
+    let pinchDist = 0;
+    let pinchZoom = 1;
     let colors = null;
     let colorsAt = 0;
+    const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
     function refreshColors(force) {
       const nowMs = performance.now();
@@ -77,12 +92,12 @@
       colors = {
         bg: parseColor(token('--chart-bg', '#fbfaf7'), '#fbfaf7'),
         gutter: parseColor(token('--chart-gutter', '#f3efe8'), '#f3efe8'),
+        ribbon: parseColor(token('--chart-ribbon', '#f6f2eb'), '#f6f2eb'),
         grid: parseColor(token('--chart-grid', '#e4ddd3'), '#e4ddd3'),
         gridActive: parseColor(token('--chart-grid-active', '#d9b8a6'), '#d9b8a6'),
         label: parseColor(token('--chart-label', '#756d64'), '#756d64'),
         line: parseColor(token('--chart-line', '#a44a2a'), '#a44a2a'),
         target: parseColor(token('--chart-target', '#2f6f5e'), '#2f6f5e'),
-        band: parseColor(token('--chart-band', 'rgba(47,111,94,.12)'), 'rgba(47,111,94,.12)'),
         inTune: parseColor(token('--chart-in-tune', '#2f6f5e'), '#2f6f5e'),
         near: parseColor(token('--chart-near', '#b7791f'), '#b7791f'),
         outTune: parseColor(token('--chart-out-tune', '#a63d40'), '#a63d40'),
@@ -102,7 +117,10 @@
     function resize() {
       const dpr = window.devicePixelRatio || 1;
       const w = canvas.parentElement ? canvas.parentElement.clientWidth : canvas.width;
-      const h = opts.height || 360;
+      // Inline height would override the CSS media query, so choose it here
+      // using the same viewport breakpoint as material.css.
+      const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+      const h = mobile ? (opts.mobileHeight || 360) : (opts.height || 400);
       if (!w || w < 40) return;
       canvas.width = Math.max(1, Math.floor(w * dpr));
       canvas.height = Math.max(1, Math.floor(h * dpr));
@@ -114,41 +132,59 @@
 
     function push(sample) {
       const midi = sample && typeof sample.midi === 'number' && Number.isFinite(sample.midi) ? sample.midi : null;
+      const now = Date.now();
       if (midi == null) {
-        // Silence marker: one is enough; the time gap itself breaks the line.
+        // One silence marker is enough; the time gap itself breaks the line.
         const last = history[history.length - 1];
         if (running && (!last || last.midi != null)) {
-          history.push({ t: Date.now(), midi: null, inTune: false, cents: 0 });
+          history.push({ t: now, midi: null, inTune: false, cents: 0 });
         }
-        return;
+      } else {
+        if (!running) start(); // guided/raga paths may push without explicit start
+        history.push({ t: now, midi, inTune: !!sample.inTune, cents: Number(sample.cents) || 0 });
       }
-      if (!running) start(); // guided/raga paths may push without explicit start
-      const now = Date.now();
-      history.push({ t: now, midi, inTune: !!sample.inTune, cents: Number(sample.cents) || 0 });
       const cutoff = now - HISTORY_MS;
       while (history.length && history[0].t < cutoff) history.shift();
+      while (targetEvents.length > 1 && targetEvents[1].t < cutoff) targetEvents.shift();
     }
 
     function clear() {
       history.length = 0;
+      targetEvents.length = 0;
+      targetEvents.push({ t: Date.now() - HISTORY_MS, midi: targetMidi, tol: targetTolerance });
       hover = null;
       draw();
     }
     function setTarget(midi, tolerance) {
       targetMidi = typeof midi === 'number' && Number.isFinite(midi) ? midi : null;
       targetTolerance = tolerance || 12;
+      const last = targetEvents[targetEvents.length - 1];
+      if (!last) {
+        // First target: treat it as active for the whole visible window.
+        targetEvents.push({ t: Date.now() - HISTORY_MS, midi: targetMidi, tol: targetTolerance });
+      } else if (last.midi !== targetMidi || last.tol !== targetTolerance) {
+        targetEvents.push({ t: Date.now(), midi: targetMidi, tol: targetTolerance });
+      }
+      if (targetEvents.length > 240) targetEvents.splice(0, targetEvents.length - 240);
     }
     function setBaseMidi(midi) { if (midi) baseMidi = midi; }
+    function setHolds(on) { showHolds = !!on; draw(); }
     function setWindow(ms) {
       baseWindowMs = Math.min(HISTORY_MS, Math.max(5000, Number(ms) || HISTORY_MS));
-      view.zoom = 1;
-      view.pan = 0;
+      view.zoom = 1; view.pan = 0;
       draw();
     }
-    function resetView() {
-      view.zoom = 1;
-      view.pan = 0;
-      draw();
+    function resetView() { view.zoom = 1; view.pan = 0; draw(); }
+
+    function exportPNG() {
+      const url = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'gansi-pitch-trail-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      return url.length;
     }
 
     function stats() {
@@ -168,13 +204,25 @@
         spanSec: Math.round((samples[samples.length - 1].t - samples[0].t) / 1000)
       };
     }
+    function describe() {
+      const st = stats();
+      if (!st) return 'পিচ ট্রেইল এখনও খালি। মাইক্রোফোন চালু করে গাইলে সুরের রেখা ও সেন্ট-বিচ্যুতি দেখা যাবে।';
+      return 'পিচ ট্রেইল: ' + toBn(st.count) + 'টি নমুনা, নিখুঁত ' + toBn(st.accuracy) +
+        '%, গড় বিচ্যুতি ' + signedBn(st.meanCents) + ' সেন্ট, পরিসর ' + signedBn(st.minCents) +
+        '…' + signedBn(st.maxCents) + ' সেন্ট, মোট ' + toBn(st.spanSec) +
+        ' সেকেন্ড। স্কোর সহায়ক পরিমাপ, শিল্পের চূড়ান্ত মান নয়।';
+    }
 
     function yOf(midiVal, lo, hi, h) {
-      const usable = Math.max(1, h - GRID_TOP - GRID_BOTTOM);
+      const usable = Math.max(1, plotBottom(h) - GRID_TOP);
       return GRID_TOP + (1 - (midiVal - lo) / Math.max(hi - lo, 1)) * usable;
     }
     function xOf(t, start, winMs, w) {
       return GRID_LEFT + ((t - start) / Math.max(winMs, 1)) * plotW(w);
+    }
+    function centY(cents, h) {
+      const half = RIBBON_H / 2 - 6;
+      return ribbonZero(h) - (clamp(Number(cents) || 0, -CENTS_MAX, CENTS_MAX) / CENTS_MAX) * half;
     }
     function qualityOf(s) {
       const ac = Math.abs(Number(s.cents) || 0);
@@ -182,35 +230,38 @@
       if (ac <= 25) return 1;
       return 2;
     }
-    function qualityColor(q) {
-      return q === 0 ? colors.inTune : q === 1 ? colors.near : colors.outTune;
-    }
+    function qualityColor(q) { return q === 0 ? colors.inTune : q === 1 ? colors.near : colors.outTune; }
     function sargamOf(midiVal) {
       const rel = Math.round(midiVal) - baseMidi;
       const idx = ((rel % 12) + 12) % 12;
       const saptak = rel < 0 ? 'মন্দ্র ' : rel >= 12 ? 'তারা ' : 'মধ্য ';
-      const name = idx === 0 && rel >= 12 ? 'সাঁ' : SARGAM_SHORT[idx];
-      return saptak + name;
+      return saptak + (idx === 0 && rel >= 12 ? 'সাঁ' : SARGAM_SHORT[idx]);
+    }
+    function shortSargam(midiVal) {
+      const idx = ((Math.round(midiVal) - baseMidi) % 12 + 12) % 12;
+      return SARGAM_SHORT[idx];
     }
     function smoothPath(points) {
       ctx.moveTo(points[0].x, points[0].y);
       if (points.length === 2) { ctx.lineTo(points[1].x, points[1].y); return; }
       for (let i = 1; i < points.length - 1; i++) {
-        const mx = (points[i].x + points[i + 1].x) / 2;
-        const my = (points[i].y + points[i + 1].y) / 2;
-        ctx.quadraticCurveTo(points[i].x, points[i].y, mx, my);
+        ctx.quadraticCurveTo(points[i].x, points[i].y,
+          (points[i].x + points[i + 1].x) / 2, (points[i].y + points[i + 1].y) / 2);
       }
       const last = points[points.length - 1];
       ctx.lineTo(last.x, last.y);
     }
-    function pill(x, y, text, opts2) {
-      const o = opts2 || {};
+    function pill(x, y, text, o) {
+      o = o || {};
       ctx.font = (o.bold ? 'bold ' : '') + (o.size || 10.5) + 'px "Segoe UI", sans-serif';
-      const tw = ctx.measureText(text).width;
-      const wdt = tw + 16;
+      const wdt = ctx.measureText(text).width + 16;
       const hgt = o.height || 19;
-      let px = Math.max(2, Math.min(cssW() - wdt - 2, x));
-      let py = Math.max(2, Math.min(cssH() - hgt - 2, y));
+      const minX = o.minX != null ? o.minX : 2;
+      const maxX = o.maxX != null ? o.maxX : cssW() - 2;
+      const minY = o.minY != null ? o.minY : 2;
+      const maxY = o.maxY != null ? o.maxY : cssH() - 2;
+      const px = clamp(x, minX, maxX - wdt);
+      const py = clamp(y, minY, maxY - hgt);
       ctx.fillStyle = rgba(o.bg, o.bgA != null ? o.bgA : 1);
       ctx.strokeStyle = rgba(o.border || o.bg, o.borderA != null ? o.borderA : 1);
       ctx.lineWidth = 1;
@@ -229,66 +280,168 @@
     function draw() {
       const w = cssW();
       const h = cssH();
-      if (!w || w < 60 || !h || h < 60) return;
+      if (!w || w < 60 || !h || h < 120) return;
       refreshColors(false);
       const C = colors;
-      ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = rgba(C.bg, 1);
-      ctx.fillRect(0, 0, w, h);
-
+      const plb = plotBottom(h);
+      const rt = ribbonTop(h);
+      const rb = ribbonBottom(h);
+      const zero = ribbonZero(h);
+      const plotRight = w - GRID_RIGHT;
       const winMs = windowMs();
       const end = endTime();
       const start = end - winMs;
       const lo = baseMidi - 12;
       const hi = baseMidi + 12;
-      const plotBottom = h - GRID_BOTTOM;
-      const plotRight = w - GRID_RIGHT;
 
-      // Octave bands: middle saptak breathes, outer saptaks recede.
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = rgba(C.bg, 1);
+      ctx.fillRect(0, 0, w, h);
+
+      // Visible points, decimated to ~1.4px so the curve stays light.
+      const visible = [];
+      let lastPx = -Infinity;
+      for (const s of history) {
+        if (s.t < start || s.t > end) continue;
+        const x = xOf(s.t, start, winMs, w);
+        if (s.midi != null && x - lastPx < 1.4 && visible.length) continue;
+        if (s.midi != null) lastPx = x;
+        visible.push({ s, x, y: s.midi == null ? null : yOf(s.midi, lo, hi, h) });
+      }
+      const voiced = visible.filter((p) => p.s.midi != null);
+
+      // Runs: broken at silence markers or long gaps (shared by both panels).
+      const runs = [];
+      let run = [];
+      let prevT = null;
+      for (const p of visible) {
+        if (p.s.midi == null || (prevT != null && p.s.t - prevT > GAP_MS)) {
+          if (run.length) runs.push(run);
+          run = [];
+        }
+        if (p.s.midi != null) run.push(p);
+        prevT = p.s.t;
+      }
+      if (run.length) runs.push(run);
+
+      // Octave bands.
       const bandDefs = [
         { from: lo, to: baseMidi, c: C.line, a: 0.035 },
         { from: baseMidi, to: baseMidi + 12, c: C.target, a: 0.045 },
         { from: baseMidi + 12, to: hi, c: C.line, a: 0.035 }
       ];
       for (const b of bandDefs) {
+        const y1 = yOf(b.to, lo, hi, h);
+        const y2 = yOf(b.from, lo, hi, h);
         ctx.fillStyle = rgba(b.c, b.a);
-        ctx.fillRect(GRID_LEFT, yOf(b.to, lo, hi, h), plotW(w), yOf(b.from, lo, hi, h) - yOf(b.to, lo, hi, h));
+        ctx.fillRect(GRID_LEFT, y1, plotW(w), y2 - y1);
       }
-      // Gutter panel + separator.
+      // Gutter panel + separator (covers both panels).
       ctx.fillStyle = rgba(C.gutter, 1);
       ctx.fillRect(0, 0, GRID_LEFT, h);
       ctx.strokeStyle = rgba(C.grid, 1);
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(GRID_LEFT + 0.5, 0); ctx.lineTo(GRID_LEFT + 0.5, h); ctx.stroke();
 
-      // Vertical time gridlines (every 10s of the visible window).
+      // Time gridlines + axis labels; remember x positions for the ribbon.
+      const tickXs = [];
       ctx.font = '10px "Segoe UI", sans-serif';
       const stepSec = winMs / 1000 > 30 ? 10 : 5;
       for (let ago = 0; ago * 1000 <= winMs; ago += stepSec) {
         const t = end - ago * 1000;
         const x = xOf(t, start, winMs, w);
+        tickXs.push(x);
         if (ago > 0) {
           ctx.strokeStyle = rgba(C.grid, 0.55);
           ctx.lineWidth = 0.6;
           ctx.setLineDash([2, 4]);
-          ctx.beginPath(); ctx.moveTo(x, GRID_TOP); ctx.lineTo(x, plotBottom); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x, GRID_TOP); ctx.lineTo(x, plb); ctx.stroke();
           ctx.setLineDash([]);
         }
         ctx.fillStyle = rgba(C.label, 1);
         ctx.textAlign = ago === 0 ? 'right' : x < GRID_LEFT + 20 ? 'left' : 'center';
         const label = ago === 0 ? 'এখন' : '−' + toBn(ago) + 'সে';
-        ctx.fillText(label, ago === 0 ? plotRight : x < GRID_LEFT + 20 ? GRID_LEFT + 1 : x, h - 22);
+        ctx.fillText(label, ago === 0 ? plotRight : x < GRID_LEFT + 20 ? GRID_LEFT + 1 : x, plb + 14);
       }
-      // Time axis baseline.
       ctx.strokeStyle = rgba(C.gridActive, 0.9);
       ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(GRID_LEFT, plotBottom + 0.5); ctx.lineTo(plotRight, plotBottom + 0.5); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(GRID_LEFT, plb + 0.5); ctx.lineTo(plotRight, plb + 0.5); ctx.stroke();
       ctx.fillStyle = rgba(C.label, 0.85);
       ctx.font = '9.5px "Segoe UI", sans-serif';
       ctx.textAlign = 'left';
-      ctx.fillText('সময় →', GRID_LEFT + 2, h - 8);
+      ctx.fillText('সময় →', 6, plb + 14);
 
-      // Swara grid + gutter labels.
+      // ---- Cents deviation ribbon ----
+      ctx.fillStyle = rgba(C.ribbon, 0.75);
+      ctx.fillRect(GRID_LEFT, rt, plotW(w), RIBBON_H);
+      ctx.strokeStyle = rgba(C.grid, 1);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(GRID_LEFT, rt + 0.5); ctx.lineTo(plotRight, rt + 0.5); ctx.stroke();
+      // ±tolerance band around zero.
+      const tolHalf = (Math.min(targetTolerance, CENTS_MAX) / CENTS_MAX) * (RIBBON_H / 2 - 6);
+      ctx.fillStyle = rgba(C.target, 0.13);
+      ctx.fillRect(GRID_LEFT, zero - tolHalf, plotW(w), tolHalf * 2);
+      // Horizontal guides: ±50 / ±25 / 0.
+      const guides = [
+        { c: CENTS_MAX, dash: [], a: 0.5 },
+        { c: 25, dash: [2, 4], a: 0.4 },
+        { c: 0, dash: [5, 3], a: 0.95 },
+        { c: -25, dash: [2, 4], a: 0.4 },
+        { c: -CENTS_MAX, dash: [], a: 0.5 }
+      ];
+      for (const g of guides) {
+        const gy = centY(g.c, h);
+        ctx.strokeStyle = rgba(g.c === 0 ? C.target : C.grid, g.a);
+        ctx.lineWidth = g.c === 0 ? 1.2 : 0.8;
+        ctx.setLineDash(g.dash);
+        ctx.beginPath(); ctx.moveTo(GRID_LEFT, gy); ctx.lineTo(plotRight, gy); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // Ribbon gutter labels.
+      ctx.font = '9px "Segoe UI", sans-serif';
+      ctx.fillStyle = rgba(C.label, 0.95);
+      ctx.textAlign = 'right';
+      ctx.fillText('+' + toBn(CENTS_MAX), GRID_LEFT - 7, centY(CENTS_MAX, h) + 3);
+      ctx.fillText(signedBn(0), GRID_LEFT - 7, zero + 3);
+      ctx.fillText('−' + toBn(CENTS_MAX), GRID_LEFT - 7, centY(-CENTS_MAX, h) + 3);
+      ctx.font = 'bold 9.5px "Segoe UI", sans-serif';
+      ctx.fillStyle = rgba(C.line, 1);
+      ctx.textAlign = 'left';
+      ctx.fillText('সেন্ট', 6, rt + 11);
+      // Faint vertical ticks inside the ribbon.
+      ctx.strokeStyle = rgba(C.grid, 0.45);
+      ctx.lineWidth = 0.6;
+      ctx.setLineDash([2, 4]);
+      for (const x of tickXs) {
+        ctx.beginPath(); ctx.moveTo(x, rt); ctx.lineTo(x, rb); ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      // Ribbon area + line, same runs and grading as the main trail.
+      ctx.save();
+      ctx.beginPath(); ctx.rect(GRID_LEFT, rt, plotW(w), RIBBON_H); ctx.clip();
+      for (const r of runs) {
+        if (r.length < 2) continue;
+        const pts = r.map((p) => ({ x: p.x, y: centY(p.s.cents, h), q: qualityOf(p.s) }));
+        for (let i = 1; i < pts.length; i++) {
+          ctx.fillStyle = rgba(qualityColor(pts[i].q), 0.2);
+          ctx.beginPath();
+          ctx.moveTo(pts[i - 1].x, zero);
+          ctx.lineTo(pts[i - 1].x, pts[i - 1].y);
+          ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.lineTo(pts[i].x, zero);
+          ctx.closePath(); ctx.fill();
+        }
+        ctx.lineWidth = 1.9;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let i = 1; i < pts.length; i++) {
+          ctx.strokeStyle = rgba(qualityColor(pts[i].q), 0.92);
+          ctx.beginPath(); ctx.moveTo(pts[i - 1].x, pts[i - 1].y); ctx.lineTo(pts[i].x, pts[i].y); ctx.stroke();
+        }
+      }
+      ctx.restore();
+
+      // ---- Swara grid + gutter labels ----
       const activeRaga = (window.pitchDetector && window.pitchDetector.activeRaga) || null;
       for (let offset = -12; offset <= 12; offset++) {
         const midiVal = baseMidi + offset;
@@ -297,8 +450,7 @@
         const isSa = idx === 0;
         const isPa = idx === 7;
         const allowed = activeRaga && activeRaga.allowedIntervals
-          ? activeRaga.allowedIntervals.includes(idx)
-          : null; // null = no raga: shuddha emphasis only
+          ? activeRaga.allowedIntervals.includes(idx) : null;
         const inScale = allowed == null ? (isSa || isPa || [2, 4, 5, 9, 11].includes(idx)) : allowed;
         ctx.strokeStyle = isSa ? rgba(C.line, 0.55) : inScale ? rgba(C.gridActive, 0.85) : rgba(C.grid, 0.6);
         ctx.lineWidth = isSa ? 1.4 : inScale ? 1 : 0.7;
@@ -308,7 +460,6 @@
         const saptak = offset === -12 ? 'মন্দ্র ' : offset === 0 ? 'মধ্য ' : offset === 12 ? 'তারা ' : '';
         const sargam = offset === 12 ? 'সাঁ' : SARGAM_SHORT[idx];
         if (isSa) {
-          // Sa gets a filled marker dot in the gutter.
           ctx.fillStyle = rgba(C.line, 1);
           ctx.beginPath(); ctx.arc(8, y, 3, 0, Math.PI * 2); ctx.fill();
         }
@@ -323,80 +474,71 @@
         ctx.textAlign = 'left';
       }
 
-      // Target band + centre line.
-      if (targetMidi != null) {
-        const ty = yOf(targetMidi, lo, hi, h);
-        const usable = Math.max(1, h - GRID_TOP - GRID_BOTTOM);
-        const bandPx = Math.max(3, (2 * targetTolerance / 100) * (usable / (hi - lo)));
+      // ---- Stepped target history ----
+      const targetSegs = [];
+      for (let i = 0; i < targetEvents.length; i++) {
+        const e = targetEvents[i];
+        const nextT = i + 1 < targetEvents.length ? targetEvents[i + 1].t : end;
+        const from = Math.max(start, e.t);
+        const to = Math.min(end, nextT);
+        if (to > from && e.midi != null) {
+          targetSegs.push({ x1: xOf(from, start, winMs, w), x2: xOf(to, start, winMs, w), midi: e.midi, tol: e.tol || 12 });
+        }
+      }
+      for (const seg of targetSegs) {
+        const ty = clamp(yOf(seg.midi, lo, hi, h), GRID_TOP, plb);
+        const usable = Math.max(1, plb - GRID_TOP);
+        const bandPx = Math.max(3, (2 * seg.tol / 100) * (usable / (hi - lo)));
         const grad = ctx.createLinearGradient(0, ty - bandPx / 2, 0, ty + bandPx / 2);
         grad.addColorStop(0, rgba(C.target, 0));
         grad.addColorStop(0.5, rgba(C.target, 0.16));
         grad.addColorStop(1, rgba(C.target, 0));
         ctx.fillStyle = grad;
-        ctx.fillRect(GRID_LEFT, ty - bandPx / 2, plotW(w), bandPx);
+        ctx.fillRect(seg.x1, ty - bandPx / 2, Math.max(1, seg.x2 - seg.x1), bandPx);
         ctx.strokeStyle = rgba(C.target, 0.85);
         ctx.lineWidth = 1.3;
         ctx.setLineDash([6, 4]);
-        ctx.beginPath(); ctx.moveTo(GRID_LEFT, ty); ctx.lineTo(plotRight, ty); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(seg.x1, ty); ctx.lineTo(seg.x2, ty); ctx.stroke();
         ctx.setLineDash([]);
-        pill(plotRight - 118, ty - bandPx / 2 - 21,
+        // Step riser between consecutive targets.
+        if (seg !== targetSegs[targetSegs.length - 1]) {
+          ctx.strokeStyle = rgba(C.target, 0.45);
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(seg.x2, ty); ctx.lineTo(seg.x2, ty + 6); ctx.stroke();
+        }
+      }
+      if (targetMidi != null) {
+        const ty = clamp(yOf(targetMidi, lo, hi, h), GRID_TOP, plb);
+        // Sits below the line; the live-head pill sits above it, so they never overlap.
+        pill(plotRight - 118, ty + 8,
           'লক্ষ্য ' + sargamOf(targetMidi).replace(/^(মন্দ্র|মধ্য|তারা) /, '') + ' ±' + toBn(targetTolerance) + ' সেন্ট',
-          { bg: C.target, bgA: 0.92, fg: parseColor('#ffffff'), size: 10, bold: true });
+          { bg: C.target, bgA: 0.92, fg: parseColor('#ffffff'), size: 10, bold: true, minY: GRID_TOP, maxY: plb });
       }
-
-      // Build visible points, decimated to ~1.4px so the curve stays light.
-      const visible = [];
-      let lastPx = -Infinity;
-      for (const s of history) {
-        if (s.t < start || s.t > end) continue;
-        const x = xOf(s.t, start, winMs, w);
-        if (s.midi != null && x - lastPx < 1.4 && visible.length) continue;
-        if (s.midi != null) lastPx = x;
-        visible.push({ s, x, y: s.midi == null ? null : yOf(s.midi, lo, hi, h) });
-      }
-      const voiced = visible.filter((p) => p.s.midi != null);
 
       // "Now" edge line.
       if (frozenEnd == null) {
         ctx.strokeStyle = rgba(C.target, 0.35);
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(plotRight - 0.5, GRID_TOP); ctx.lineTo(plotRight - 0.5, plotBottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(plotRight - 0.5, GRID_TOP); ctx.lineTo(plotRight - 0.5, plb); ctx.stroke();
         ctx.setLineDash([]);
       }
 
-      // Trail: split on silence gaps / nulls, grade by cents, smooth curve.
+      // ---- Main trail ----
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(GRID_LEFT, GRID_TOP - 2, plotW(w), plotBottom - GRID_TOP + 4);
-      ctx.clip();
-      const runs = [];
-      let run = [];
-      let prevT = null;
-      for (const p of visible) {
-        if (p.s.midi == null || (prevT != null && p.s.t - prevT > GAP_MS)) {
-          if (run.length) runs.push(run);
-          run = [];
-        }
-        if (p.s.midi != null) run.push(p);
-        prevT = p.s.t;
-      }
-      if (run.length) runs.push(run);
-
+      ctx.beginPath(); ctx.rect(GRID_LEFT, GRID_TOP - 2, plotW(w), plb - GRID_TOP + 4); ctx.clip();
       for (const r of runs) {
         if (r.length < 2) continue;
-        // Area wash under the whole run (neutral clay, very light).
         ctx.beginPath();
         smoothPath(r);
-        ctx.lineTo(r[r.length - 1].x, plotBottom);
-        ctx.lineTo(r[0].x, plotBottom);
+        ctx.lineTo(r[r.length - 1].x, plb);
+        ctx.lineTo(r[0].x, plb);
         ctx.closePath();
-        const wash = ctx.createLinearGradient(0, GRID_TOP, 0, plotBottom);
+        const wash = ctx.createLinearGradient(0, GRID_TOP, 0, plb);
         wash.addColorStop(0, rgba(C.line, 0.10));
         wash.addColorStop(1, rgba(C.line, 0.01));
         ctx.fillStyle = wash;
         ctx.fill();
-        // Colour segments (boundary point shared so the line never breaks).
         let seg = [r[0]];
         let segQ = qualityOf(r[0].s);
         const strokeSeg = () => {
@@ -406,18 +548,12 @@
           fade.addColorStop(0, rgba(col, 0.22));
           fade.addColorStop(0.55, rgba(col, 0.75));
           fade.addColorStop(1, rgba(col, 1));
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
           ctx.beginPath(); smoothPath(seg);
-          ctx.strokeStyle = fade;
-          ctx.globalAlpha = 0.16;
-          ctx.lineWidth = 6.5;
-          ctx.stroke();
+          ctx.strokeStyle = fade; ctx.globalAlpha = 0.16; ctx.lineWidth = 6.5; ctx.stroke();
           ctx.globalAlpha = 1;
           ctx.beginPath(); smoothPath(seg);
-          ctx.strokeStyle = fade;
-          ctx.lineWidth = 2.7;
-          ctx.stroke();
+          ctx.strokeStyle = fade; ctx.lineWidth = 2.7; ctx.stroke();
         };
         for (let i = 1; i < r.length; i++) {
           const q = qualityOf(r[i].s);
@@ -427,11 +563,48 @@
         strokeSeg();
       }
 
+      // Stable-note hold labels, with anti-overlap.
+      if (showHolds) {
+        const holds = [];
+        for (const r of runs) {
+          let cur = null;
+          const finish = () => {
+            if (cur && cur.count >= 4 && cur.lastT - cur.firstT >= 550) holds.push(cur);
+          };
+          for (const p of r) {
+            const note = Math.round(p.s.midi);
+            if (!cur || cur.note !== note || p.s.t - cur.lastT > GAP_MS) {
+              finish();
+              cur = { note, firstT: p.s.t, lastT: p.s.t, firstX: p.x, lastX: p.x, count: 1, ySum: p.y };
+            } else {
+              cur.lastT = p.s.t; cur.lastX = p.x; cur.count++; cur.ySum += p.y;
+            }
+          }
+          finish();
+        }
+        holds.sort((a, b) => a.firstX - b.firstX);
+        let lastLabelX = -Infinity;
+        let shown = 0;
+        for (const hd of holds) {
+          if (shown >= 6) break;
+          const cx = (hd.firstX + hd.lastX) / 2;
+          if (cx - lastLabelX < 78) continue;
+          const dur = (hd.lastT - hd.firstT) / 1000;
+          const txt = shortSargam(hd.note) + ' · ' + toBn(dur.toFixed(1)) + 'সে';
+          const box = pill(cx - 24, hd.ySum / hd.count - 24, txt, {
+            bg: C.cardBg, bgA: 0.92, fg: C.cardSub, border: C.cardBorder, borderA: 1,
+            size: 9.5, minX: GRID_LEFT + 2, maxX: plotRight, minY: GRID_TOP + 2, maxY: plb
+          });
+          lastLabelX = box.x + box.w;
+          shown++;
+        }
+      }
+
       // Live head: ring + dot + note pill.
       const last = voiced[voiced.length - 1];
       if (last) {
         const col = qualityColor(qualityOf(last.s));
-        if (frozenEnd == null) {
+        if (frozenEnd == null && !reduceMotion) {
           const pulse = 8 + Math.sin(Date.now() / 320) * 1.8;
           ctx.strokeStyle = rgba(col, 0.35);
           ctx.lineWidth = 1.6;
@@ -441,32 +614,39 @@
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(last.x, last.y, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        const headText = sargamOf(last.s.midi) + ' ' + westernName(Math.round(last.s.midi)) + ' ' + signedBn(last.s.cents) + ' সেন্ট';
-        if (!hover) pill(Math.min(last.x + 10, plotRight - 150), last.y - 26, headText,
-          { bg: C.cardBg, bgA: 0.96, fg: C.cardText, border: C.cardBorder, borderA: 1, size: 10, bold: true });
+        if (!hover) {
+          const headText = sargamOf(last.s.midi) + ' ' + westernName(Math.round(last.s.midi)) + ' ' + signedBn(last.s.cents) + ' সেন্ট';
+          pill(Math.min(last.x + 10, plotRight - 150), last.y - 26, headText,
+            { bg: C.cardBg, bgA: 0.96, fg: C.cardText, border: C.cardBorder, borderA: 1,
+              size: 10, bold: true, minY: GRID_TOP, maxY: plb });
+        }
       }
       ctx.restore();
 
-      // Hover crosshair + readout.
+      // Hover crosshair spans both panels.
       if (hover && hover.s && hover.s.midi != null) {
         const hx = xOf(hover.s.t, start, winMs, w);
         const hy = yOf(hover.s.midi, lo, hi, h);
         ctx.strokeStyle = rgba(C.label, 0.45);
         ctx.lineWidth = 0.8;
         ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(hx, GRID_TOP); ctx.lineTo(hx, plotBottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hx, GRID_TOP); ctx.lineTo(hx, rb); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(GRID_LEFT, hy); ctx.lineTo(plotRight, hy); ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = rgba(qualityColor(qualityOf(hover.s)), 1);
+        const qc = qualityColor(qualityOf(hover.s));
+        ctx.fillStyle = rgba(qc, 1);
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 1.8;
         ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(hx, centY(hover.s.cents, h), 4, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         const agoSec = Math.max(0, Math.round((end - hover.s.t) / 1000));
-        const tip = sargamOf(hover.s.midi) + ' ' + westernName(Math.round(hover.s.midi)) + ' • ' + signedBn(hover.s.cents) + ' সেন্ট • ' + (agoSec === 0 ? 'এখন' : toBn(agoSec) + 'সে আগে');
-        pill(hx + 10, hy - 28, tip, { bg: C.cardBg, bgA: 0.97, fg: C.cardText, border: C.cardBorder, borderA: 1, size: 10 });
+        const tip = sargamOf(hover.s.midi) + ' ' + westernName(Math.round(hover.s.midi)) + ' • ' +
+          signedBn(hover.s.cents) + ' সেন্ট • ' + (agoSec === 0 ? 'এখন' : toBn(agoSec) + 'সে আগে');
+        pill(hx + 10, hy - 28, tip,
+          { bg: C.cardBg, bgA: 0.97, fg: C.cardText, border: C.cardBorder, borderA: 1, size: 10 });
       }
 
-      // Legend (top-left inside plot).
+      // Legend.
       const legend = [
         { c: C.inTune, t: 'সঠিক ≤' + toBn(12) },
         { c: C.near, t: 'কাছে ≤' + toBn(25) },
@@ -484,7 +664,7 @@
         lx += 11 + ctx.measureText(item.t).width + 12;
       }
 
-      // Stats card (top-right, theme-aware).
+      // Stats card.
       const st = stats();
       if (st) {
         const lines = [
@@ -492,8 +672,10 @@
           { t: 'নমুনা ' + toBn(st.count) + ' • সময় ' + toBn(st.spanSec) + 'সে' },
           { t: 'বিচ্যুতি ' + signedBn(st.minCents) + '…' + signedBn(st.maxCents) + ' • σ ' + toBn(st.stdCents) + ' সেন্ট' }
         ];
-        ctx.font = 'bold 11px "Segoe UI", sans-serif';
-        const tw = Math.max(...lines.map((l) => { ctx.font = (l.bold ? 'bold 11px' : '10px') + ' "Segoe UI", sans-serif'; return ctx.measureText(l.t).width; }));
+        const tw = Math.max(...lines.map((l) => {
+          ctx.font = (l.bold ? 'bold 11px' : '10px') + ' "Segoe UI", sans-serif';
+          return ctx.measureText(l.t).width;
+        }));
         const cardW = tw + 20;
         const cardH = 58;
         const ox = w - cardW - 8;
@@ -504,7 +686,6 @@
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(ox, oy, cardW, cardH, 10); else ctx.rect(ox, oy, cardW, cardH);
         ctx.fill(); ctx.stroke();
-        // Accuracy bar.
         ctx.fillStyle = rgba(C.grid, 1);
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(ox + 9, oy + cardH - 10, cardW - 18, 4, 2); else ctx.rect(ox + 9, oy + cardH - 10, cardW - 18, 4);
@@ -524,30 +705,30 @@
         });
       }
 
-      // Frozen badge.
       if (frozenEnd != null) {
         pill(GRID_LEFT + 8, GRID_TOP + 16, 'রেওয়াজ বন্ধ — শেষের ট্রেইল',
           { bg: parseColor('#292723'), bgA: 0.82, fg: parseColor('#ffffff'), size: 10.5, bold: true });
       }
 
-      // Empty state.
       if (!voiced.length) {
+        const cx = (GRID_LEFT + plotRight) / 2;
+        const cy = (GRID_TOP + plb) / 2;
         ctx.fillStyle = rgba(C.line, 0.16);
         ctx.font = '34px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('♪', (GRID_LEFT + plotRight) / 2, h / 2 - 8);
+        ctx.fillText('♪', cx, cy - 8);
         ctx.fillStyle = rgba(C.label, 1);
         ctx.font = '12.5px "Segoe UI", sans-serif';
-        ctx.fillText('মাইক্রোফোন চালু করে গাইলে এখানে সুরের রেখা ফুটে উঠবে', (GRID_LEFT + plotRight) / 2, h / 2 + 16);
+        ctx.fillText('মাইক্রোফোন চালু করে গাইলে এখানে সুরের রেখা ফুটে উঠবে', cx, cy + 16);
         ctx.font = '10.5px "Segoe UI", sans-serif';
         ctx.fillStyle = rgba(C.label, 0.75);
-        ctx.fillText('সবুজ = সঠিক সুর • হলুদাভ = কাছাকাছি • লালচে = সুরের বাইরে', (GRID_LEFT + plotRight) / 2, h / 2 + 34);
+        ctx.fillText('উপরে স্বরের রেখা • নিচে সেন্ট-বিচ্যুতি • সবুজ = সঠিক সুর', cx, cy + 34);
         ctx.textAlign = 'left';
       }
     }
 
     function loop() {
-      if (!running) return;
+      if (!running || hidden) return;
       draw();
       raf = requestAnimationFrame(loop);
     }
@@ -565,24 +746,35 @@
       if (raf) cancelAnimationFrame(raf);
       raf = null;
       draw();
+      if (typeof opts.onStop === 'function') { try { opts.onStop(); } catch (_) {} }
     }
 
-    // Pointer: hover readout + drag pan; wheel zoom; double-click reset.
+    // Pointer: hover readout, drag pan, pinch zoom (touch), wheel zoom, dblclick reset.
     function pointerPos(e) {
       const r = canvas.getBoundingClientRect();
       return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
     canvas.addEventListener('pointermove', (e) => {
       const pos = pointerPos(e);
+      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, pos.x);
+      if (pointers.size >= 2) {
+        const xs = [...pointers.values()];
+        const d = Math.abs(xs[0] - xs[1]);
+        if (pinchDist > 4) {
+          view.zoom = clamp(pinchZoom * (d / pinchDist), 1, 8);
+          if (view.zoom === 1) view.pan = 0;
+          draw();
+        }
+        return;
+      }
       if (dragging) {
         const dx = pos.x - lastX;
         lastX = pos.x;
         const span = plotW(cssW());
-        view.pan = Math.max(0, Math.min(HISTORY_MS - windowMs(), view.pan - dx * (windowMs() / span)));
+        view.pan = clamp(view.pan - dx * (windowMs() / span), 0, HISTORY_MS - windowMs());
         draw();
         return;
       }
-      // Nearest voiced sample to the cursor x.
       const end = endTime();
       const start = end - windowMs();
       let best = null;
@@ -597,33 +789,61 @@
       if (!running) draw();
     });
     canvas.addEventListener('pointerdown', (e) => {
-      dragging = true;
-      lastX = pointerPos(e).x;
-      canvas.classList.add('dragging');
+      const x = pointerPos(e).x;
+      pointers.set(e.pointerId, x);
+      if (pointers.size === 1) {
+        dragging = true;
+        lastX = x;
+        canvas.classList.add('dragging');
+      } else if (pointers.size === 2) {
+        dragging = false;
+        const xs = [...pointers.values()];
+        pinchDist = Math.abs(xs[0] - xs[1]);
+        pinchZoom = view.zoom;
+      }
       if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} }
     });
-    const endDrag = () => { dragging = false; canvas.classList.remove('dragging'); };
-    canvas.addEventListener('pointerup', endDrag);
-    canvas.addEventListener('pointercancel', endDrag);
+    const endPointer = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size === 1) {
+        dragging = true;
+        lastX = [...pointers.values()][0];
+      } else if (pointers.size === 0) {
+        dragging = false;
+        canvas.classList.remove('dragging');
+        pinchDist = 0;
+      }
+    };
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
     canvas.addEventListener('pointerleave', () => { hover = null; if (!running) draw(); });
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const factor = e.deltaY < 0 ? 1.2 : 0.83;
-      view.zoom = Math.min(8, Math.max(1, view.zoom * factor));
+      view.zoom = clamp(view.zoom * (e.deltaY < 0 ? 1.2 : 0.83), 1, 8);
       if (view.zoom === 1) view.pan = 0;
       draw();
     }, { passive: false });
     canvas.addEventListener('dblclick', () => resetView());
     window.addEventListener('resize', resize);
-    // Theme tokens live on <html data-theme>: repaint instantly on switch.
+    document.addEventListener('visibilitychange', () => {
+      hidden = document.hidden;
+      if (hidden) {
+        if (raf) cancelAnimationFrame(raf);
+        raf = null;
+      } else if (running && !raf) {
+        loop();
+      }
+    });
     if (typeof MutationObserver !== 'undefined') {
       new MutationObserver(() => { refreshColors(true); draw(); })
         .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
     }
 
     return {
-      push, setTarget, setBaseMidi, setWindow, resetView, start, stop, clear, resize, draw, stats,
+      push, setTarget, setBaseMidi, setWindow, resetView, setHolds, exportPNG,
+      describe, start, stop, clear, resize, draw, stats,
       history: () => history.slice(),
+      targetHistory: () => targetEvents.slice(),
       isLive: () => running
     };
   }

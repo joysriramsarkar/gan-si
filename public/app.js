@@ -294,13 +294,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize Canvas + advanced pitch trail (360px: 25 swara lines fit).
+  // Initialize Canvas + advanced pitch trail (400px: 25 swara lines + cents ribbon).
   if (pitchCanvas) {
     pitchDetector.setCanvas(pitchCanvas);
     const resizeCanvas = () => {
       const w = pitchCanvas.parentElement ? pitchCanvas.parentElement.clientWidth : 0;
       pitchCanvas.width = w > 50 ? w : 480;
-      pitchCanvas.height = 360;
+      pitchCanvas.height = 400;
       if (pitchTrail) pitchTrail.resize();
     };
     resizeCanvas();
@@ -308,25 +308,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Create advanced trail.
     if (window.PitchTrail) {
-      const trail = window.PitchTrail.create(pitchCanvas, { height: 360 });
+      const trailSummary = document.getElementById('trailSummary');
+      const refreshSummary = () => { if (trailSummary) trailSummary.textContent = trail.describe(); };
+      const trail = window.PitchTrail.create(pitchCanvas, { height: 400, mobileHeight: 360, onStop: refreshSummary });
       pitchTrail = trail;
       // Hook into pitch updates via a global bridge so the section-8 handler
       // (which is assigned later) can push samples without being overwritten.
       window.__pitchTrail = trail;
       trail.start();
       resizeCanvas();
-      // Graph toolbar: time window / reset view / clear trail.
+
+      // Screen-reader summary + toolbar status (privacy-first, all local).
+      const trailStatus = document.getElementById('trailStatus');
+      const sayStatus = (msg) => { if (trailStatus) { trailStatus.textContent = msg; } };
+      window.__updateTrailSummary = refreshSummary;
+      refreshSummary();
+
+      // Graph toolbar: time window / hold labels / reset view / clear / PNG export.
       document.querySelectorAll('.trail-window-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('.trail-window-btn').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
           trail.setWindow(Number(btn.dataset.trailWindow) || 60000);
+          sayStatus('উইন্ডো বদলানো হয়েছে');
         });
       });
+      const trailHoldsBtn = document.getElementById('trailHoldsBtn');
+      if (trailHoldsBtn) trailHoldsBtn.addEventListener('click', () => {
+        const on = trailHoldsBtn.getAttribute('aria-pressed') !== 'true';
+        trailHoldsBtn.setAttribute('aria-pressed', String(on));
+        trail.setHolds(on);
+        sayStatus(on ? 'স্বর লেবেল চালু' : 'স্বর লেবেল বন্ধ');
+      });
       const trailResetBtn = document.getElementById('trailResetBtn');
-      if (trailResetBtn) trailResetBtn.addEventListener('click', () => trail.resetView());
+      if (trailResetBtn) trailResetBtn.addEventListener('click', () => { trail.resetView(); sayStatus('ভিউ রিসেট'); });
       const trailClearBtn = document.getElementById('trailClearBtn');
-      if (trailClearBtn) trailClearBtn.addEventListener('click', () => trail.clear());
+      if (trailClearBtn) trailClearBtn.addEventListener('click', () => {
+        trail.clear(); window.__updateTrailSummary(); sayStatus('ট্রেইল মোছা হয়েছে');
+      });
+      const trailExportBtn = document.getElementById('trailExportBtn');
+      if (trailExportBtn) trailExportBtn.addEventListener('click', () => {
+        trail.exportPNG(); sayStatus('ছবি ডিভাইসে সংরক্ষিত');
+      });
     }
   }
 
@@ -433,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
       stopGuidedPractice(false);
       pitchDetector.stopListening();
       if (window.__pitchTrail) window.__pitchTrail.stop(); // freeze graph
+      if (window.__updateTrailSummary) window.__updateTrailSummary();
       releaseWakeLock();
       startMicBtn.innerHTML = `${uiIcon('mic')} রেওয়াজ শুরু করুন`;
       startMicBtn.classList.remove('btn-danger');

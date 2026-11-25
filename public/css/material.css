@@ -272,14 +272,17 @@ input[type="checkbox"] { accent-color: var(--primary); width: 18px; height: 18px
 .pitch-hero.locked-in .cents-pointer { background: var(--accent-green); box-shadow: none; }
 .cents-labels { color: var(--text-muted); font-size: .7rem; }
 .canvas-wrapper { margin-top: 18px; position: relative; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .pitch-trail-toolbar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
   .pitch-trail-toolbar button { min-height: 30px; padding: 4px 10px; font-size: .72rem; border-radius: 9px; }
   .pitch-trail-toolbar button.active { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
+  .pitch-trail-toolbar button[aria-pressed="true"] { background: var(--primary-container); color: var(--on-primary-container); border-color: transparent; }
   .pitch-trail-caption { font-size: .72rem; font-weight: 700; color: var(--text-muted); }
   .pitch-trail-hint { font-size: .68rem; color: var(--text-dim); margin-left: auto; }
-  canvas#pitchCanvas { height: 360px; background: var(--chart-bg); border: 1px solid var(--border-color); border-radius: 16px; touch-action: none; cursor: grab; box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+  #trailStatus { font-size: .68rem; color: var(--accent-green); min-width: 90px; }
+  canvas#pitchCanvas { height: 400px; background: var(--chart-bg); border: 1px solid var(--border-color); border-radius: 16px; touch-action: none; cursor: grab; box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
   canvas#pitchCanvas.dragging { cursor: grabbing; }
-  @media (max-width: 640px) { canvas#pitchCanvas { height: 320px; } .pitch-trail-hint { margin-left: 0; width: 100%; } }
+  @media (max-width: 640px) { canvas#pitchCanvas { height: 360px; } .pitch-trail-hint { margin-left: 0; width: 100%; } }
 .swara-matrix { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
 .swara-chip {
   min-height: 66px;

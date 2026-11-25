@@ -32,6 +32,7 @@
   --shadow-2: 0 10px 32px rgba(41, 39, 35, 0.08);
   --chart-bg: #fbfaf7;
   --chart-gutter: #f3efe8;
+  --chart-ribbon: #f6f2eb;
   --chart-grid: #e4ddd3;
   --chart-grid-active: #d9b8a6;
   --chart-label: #756d64;
@@ -124,6 +125,7 @@
   --shadow-2: 0 12px 34px rgba(0, 0, 0, 0.28);
   --chart-bg: #171b1e;
   --chart-gutter: #1d2226;
+  --chart-ribbon: #14181b;
   --chart-grid: #30373d;
   --chart-grid-active: #654635;
   --chart-label: #b8b2aa;
