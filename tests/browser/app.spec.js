@@ -432,3 +432,38 @@ test('a stale cached bundle on the static host (Vercel) is flagged with a reload
   await expect(page.locator('#versionNotice')).toContainText('sur-sadhana-v৯৯');
   await expect(page.locator('#versionNotice button')).toContainText('রিলোড');
 });
+
+test('wrong Sa explains a stuck score, correct Sa scores, silence re-centres the needle', async ({ page }) => {
+  await page.addInitScript(() => {
+    // A synthetic "singer" at C4, so the app's default Sa (A#) reads it as re.
+    navigator.mediaDevices.getUserMedia = async () => {
+      const ac = new AudioContext();
+      const osc = ac.createOscillator(); const g = ac.createGain();
+      osc.type = 'sine'; g.gain.value = 0.3; osc.frequency.value = 261.63;
+      osc.connect(g);
+      const dest = ac.createMediaStreamDestination();
+      g.connect(dest); osc.start();
+      window.__osc = osc;
+      return dest.stream;
+    };
+  });
+  await page.goto('/');
+  await page.evaluate(() => {
+    const s = document.getElementById('scaleSelect');
+    s.value = '10'; s.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.click('#tabbtn-alankars');
+  await page.click('#startGuidedPracticeBtn');
+  await expect(page.locator('#guidedTonicHint')).toBeVisible({ timeout: 8000 });
+  await expect(page.locator('#practiceScore')).toHaveText(/^০$/);
+
+  await page.evaluate(() => {
+    const s = document.getElementById('scaleSelect');
+    s.value = '0'; s.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('#practiceScore')).not.toHaveText(/^০$/, { timeout: 8000 });
+  await expect(page.locator('#currentTargetNote')).toHaveText('রে');
+
+  await page.evaluate(() => { window.__osc.frequency.value = 40; }); // below detector range = silence
+  await expect.poll(async () => page.locator('#pitchNeedle').evaluate((el) => el.style.left)).toBe('50%');
+});

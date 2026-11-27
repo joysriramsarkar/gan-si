@@ -701,6 +701,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!data) {
       sargamDisplay.classList.remove('active', 'in-tune');
       pitchHero.classList.remove('locked-in');
+      // Silence must bring the needle back to zero. Without this it stayed
+      // pinned at the last (often far-right) reading until the mic was stopped.
+      pitchNeedle.style.left = '50%';
       if (apaswaraAlert) apaswaraAlert.classList.remove('visible');
       return;
     }
@@ -1031,6 +1034,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let guidedHoldStart = null; // P2-2: time-based hold (300ms), fps-independent
   let guidedSessionStartedAt = null;
   let guidedAlankarId = null;
+  let guidedTonicHintShown = false;
+  let guidedMissStreak = 0;
   const GUIDED_HOLD_MS = 300;
 
   // Swara identity by semitone, not by display string. Stripping accidentals
@@ -1088,6 +1093,10 @@ document.addEventListener('DOMContentLoaded', () => {
     currentTargetIndex = 0;
     practiceScore = 0;
     guidedHoldStart = null;
+    guidedTonicHintShown = false;
+    guidedMissStreak = 0;
+    const hintEl0 = document.getElementById('guidedTonicHint');
+    if (hintEl0) { hintEl0.hidden = true; hintEl0.textContent = ''; }
     guidedAlankarId = alankar.id != null ? String(alankar.id) : null;
 
     if (guidedPracticeTitle) {
@@ -1169,6 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     );
 
     if (matched) {
+      guidedMissStreak = 0;
       if (guidedHoldStart == null) guidedHoldStart = now;
       if (now - guidedHoldStart >= GUIDED_HOLD_MS) {
         guidedHoldStart = null;
@@ -1198,6 +1208,19 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       guidedHoldStart = null;
       if (data.isInTune) trackMiss(targetSwara, now);
+      // A stable sung pitch that never matches the target is the classic sign
+      // that the app's Sa is not the singer's Sa (e.g. singing in C while the
+      // scale selector says A#): every swara is shifted, every cent reading is
+      // off, and the score stays 0. Explain it instead of failing silently.
+      guidedMissStreak++;
+      if (!guidedTonicHintShown && guidedMissStreak >= 8) {
+        guidedTonicHintShown = true;
+        const hintEl = document.getElementById('guidedTonicHint');
+        if (hintEl) {
+          hintEl.hidden = false;
+          hintEl.textContent = '⚠️ সুর ধরা পড়ছে কিন্তু লক্ষ্যের সঙ্গে মিলছে না। সম্ভবত «সা = ...»-এ আপনার আসল সা বাছা হয়নি (যেমন C-তে গেয়ে অ্যাপে A# ধরে থাকা)। উপরের ড্রপডাউন থেকে সঠিক সা বাছুন।';
+        }
+      }
     }
   };
 
