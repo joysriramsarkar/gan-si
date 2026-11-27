@@ -493,6 +493,29 @@ test('static host reads streak and minutes from local-first storage', async ({ p
   await expect(page.locator('#totalMinsDisplay')).toContainText('২৫');
 });
 
+test('the swara ladder stays fixed when the voice leaves the visible range', async ({ page }) => {
+  await page.goto('/');
+  const gutterHash = () => page.evaluate(() => {
+    const c = document.getElementById('pitchCanvas');
+    const g = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const d = g.getImageData(0, 0, Math.round(98 * dpr), c.height).data;
+    let h = 0;
+    for (let i = 0; i < d.length; i += 97) h = (h * 31 + d[i]) | 0;
+    return h;
+  });
+  await page.evaluate(() => {
+    window.__pitchTrail.clear();
+    window.__pitchTrail.push({ midi: 60, cents: 0, inTune: true });
+  });
+  await page.waitForTimeout(300);
+  const before = await gutterHash();
+  // A note far above the fixed ladder must not drag the note names with it.
+  await page.evaluate(() => window.__pitchTrail.push({ midi: 95, cents: 0, inTune: true }));
+  await page.waitForTimeout(300);
+  expect(await gutterHash()).toBe(before);
+});
+
 test('western notation shows C4 (Latin) while the frequency stays Bengali', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => {

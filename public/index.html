@@ -7,7 +7,7 @@
   <meta name="description" content="লাইভ ভোকাল পিচ ট্রেইনার, অ্যাকোস্টিক তানপুরা, ভার্চুয়াল হারমোনিয়াম, তবলা তাল ও অলংকার সাধনা প্ল্যাটফর্ম।">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#f5f2ec">
-  <meta name="gansi-version" content="2.8.1">
+  <meta name="gansi-version" content="2.8.2">
   <meta name="gansi-sw-version" content="18">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/main.css">
@@ -685,12 +685,12 @@
         <div class="card-header">
           <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> পিয়ানো-রোল পিচ মনিটর (Vocal Pitch Monitor)</div>
           <select id="pianoRollRange" class="btn-outline" aria-label="পিয়ানো রেঞ্জ" style="font-size:0.8rem;">
-            <option value="auto" selected>অটো (কণ্ঠ অনুসরণ)</option>
+            <option value="auto" selected>ডিফল্ট রেঞ্জ</option>
             <option value="24">২ অক্টেভ</option>
             <option value="36">৩ অক্টেভ</option>
           </select>
         </div>
-        <p style="font-size:0.85rem;color:var(--text-muted);">বাঁ দিকে স্থির নোট-লেডার (স্বর + Western নোট), ডান দিকে সময়ের সঙ্গে বাঁ দিকে সরে যাওয়া সুরের রোল; উপরে সেন্ট-মিটার। সুর স্ক্রিনের বাইরে গেলে লেডার নিজে উপর-নিচ সরে যায়। এই ট্যাব থেকেই মাইক চালু/বন্ধ ও ডিভাইস বাছা যায়।</p>
+        <p style="font-size:0.85rem;color:var(--text-muted);">বাঁ দিকে স্থির নোট-লেডার (স্বর + Western নোট), ডান দিকে সময়ের সঙ্গে বাঁ দিকে সরে যাওয়া সুরের রোল; উপরে সেন্ট-মিটার। সময় ও স্বর—দুই অক্ষই স্থির; রেঞ্জের বাইরের স্বর দেখা যাবে না (রেঞ্জ বদলে দেখুন)। এই ট্যাব থেকেই মাইক চালু/বন্ধ ও ডিভাইস বাছা যায়।</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
           <span style="font-size:0.85rem;color:var(--text-muted);">বর্তমান পিচ</span>
           <strong id="pianoRollNote" data-no-bn-digits style="font-size:1.05rem;color:var(--primary);">-</strong>

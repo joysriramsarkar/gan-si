@@ -2,9 +2,9 @@
  * Piano-Roll Pitch Monitor — Singing Carrots-style layout:
  *   fixed note ladder on the left, time-scrolling pitch roll on the right,
  *   cents meter on top.
- * The ladder never scrolls sideways; when the voice leaves the visible
- * semitone window the ladder slides up/down to follow it. Shares the app's
- * mic/pitch detector (no second audio pipeline); audio never leaves the device.
+ * Both axes are fixed: the ladder never slides and notes outside the chosen
+ * range are not drawn. Shares the app's mic/pitch detector (no second audio
+ * pipeline); audio never leaves the device.
  */
 (function (root) {
   const BN = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
@@ -36,7 +36,6 @@
 
     let samples = []; // {t, midi|null, cents}
     let lastPushAt = 0;
-    let center = null; // vertical viewport centre in MIDI
 
     function rootPc() {
       return root.audioEngine && Number.isFinite(root.audioEngine.rootOffset) ? ((root.audioEngine.rootOffset % 12) + 12) % 12 : 10;
@@ -125,22 +124,11 @@
       const rootPcVal = rootPc();
       const middleSa = 48 + rootPcVal;
 
-      // ---- Follow the voice vertically (fixed ladder labels, sliding view) ----
-      let recentMidi = null;
-      for (let i = samples.length - 1; i >= 0; i--) {
-        if (samples[i].midi != null && now - samples[i].t < 1500) { recentMidi = samples[i].midi; break; }
-      }
-      const target = recentMidi != null ? recentMidi : middleSa;
-      if (center == null) center = target;
-      const half = span / 2;
-      if (recentMidi != null) {
-        if (target > center + half - 3) center = target - (half - 3);
-        else if (target < center - half + 3) center = target + (half - 3);
-      } else {
-        center += (middleSa - center) * 0.03; // ease home when silent
-      }
-      const lo = center - half;
-      const hi = center + half;
+      // ---- Fixed note ladder: Sa-centred range, labels never slide ----
+      // Notes outside this range are simply not drawn (clipped), like samples
+      // older than the time window. Use the range selector to widen it.
+      const lo = middleSa - Math.floor(span / 2);
+      const hi = lo + span;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = colors.bg;
@@ -358,8 +346,7 @@
       window.dispatchEvent(new CustomEvent('gansi:micstate', { detail: { listening: pd.isListening } }));
       syncToggleLabel();
     });
-    if (clearBtn) clearBtn.addEventListener('click', () => { samples = []; center = null; });
-    if (spanSel) spanSel.addEventListener('change', () => { center = null; });
+    if (clearBtn) clearBtn.addEventListener('click', () => { samples = []; });
     window.addEventListener('gansi:micstate', syncToggleLabel);
     window.addEventListener('resize', resize);
 

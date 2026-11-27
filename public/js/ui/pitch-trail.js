@@ -75,10 +75,8 @@
     let targetMidi = null;
     let targetTolerance = 12;
     let baseMidi = 60;
-    // Vertical viewport: a fixed note ladder on the left that slides up/down
-    // with the voice instead of clipping notes outside a two-octave box.
-    let viewCenter = null;
-    let viewCenterBase = null;
+    // The note ladder is fixed: both axes are stable. Notes outside the
+    // visible range are simply not drawn (like samples older than the window).
     let showHolds = true;
     let hover = null;
     let dragging = false;
@@ -321,32 +319,9 @@
       const start = end - win;
       const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
       const span = mobile ? 17 : 25; // semitones visible at once
-      const half = span / 2;
-      if (viewCenter == null || viewCenterBase !== baseMidi) {
-        viewCenter = baseMidi;
-        viewCenterBase = baseMidi;
-      }
-      // Follow the voice: when the note approaches the top/bottom edge, slide
-      // the ladder so the singer stays comfortably in view.
-      const lastVoiced = (() => {
-        for (let i = history.length - 1; i >= 0; i--) {
-          const s = history[i];
-          if (s.t < start || s.t > end) continue;
-          if (s.midi != null) return s;
-        }
-        return null;
-      })();
-      if (lastVoiced) {
-        const margin = 3;
-        let target = viewCenter;
-        if (lastVoiced.midi > viewCenter + half - margin) target = lastVoiced.midi - (half - margin);
-        else if (lastVoiced.midi < viewCenter - half + margin) target = lastVoiced.midi + (half - margin);
-        viewCenter += (target - viewCenter) * 0.22;
-      } else {
-        viewCenter += (baseMidi - viewCenter) * 0.04; // ease home when silent
-      }
-      let lo = viewCenter - half;
-      let hi = viewCenter + half;
+      // Fixed note axis centred on Sa: the ladder and its labels never move.
+      const lo = baseMidi - Math.floor(span / 2);
+      const hi = lo + span;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = rgba(C.bg, 1);
@@ -362,13 +337,8 @@
         if (s.midi != null) lastPx = x;
         visible.push({ s, x, y: null });
       }
-      // A fast glide can briefly leave the followed window; widen just enough
-      // to keep the dot visible rather than clipping it off the panel edge.
-      for (const p of visible) {
-        if (p.s.midi == null) continue;
-        if (p.s.midi < lo) lo = Math.floor(p.s.midi) - 1;
-        if (p.s.midi > hi) hi = Math.ceil(p.s.midi) + 1;
-      }
+      // Notes outside the fixed ladder are not drawn (they are clipped), just
+      // like samples older than the time window.
       for (const p of visible) p.y = p.s.midi == null ? null : yOf(p.s.midi, lo, hi, h);
       const voiced = visible.filter((p) => p.s.midi != null);
 
