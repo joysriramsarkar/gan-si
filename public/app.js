@@ -97,28 +97,49 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Stale-tab check: a tab kept open across a deploy keeps running old JS,
-  // which looks like "nothing works". Compare the bundled version with the
-  // server's health endpoint and offer a one-click reload (offline = silent).
+  // which looks like "nothing works" (e.g. the old 8-tab UI on Vercel).
+  // Self-hosted: compare with the server's health endpoint.
+  // Static host (Vercel): no /api, so compare the SW cache version baked into
+  // this HTML with the live /sw.js. A stale cached bundle carries an older
+  // meta value and gets a one-click reload. Offline = silent.
   (() => {
-    if (window.GANSI_STATIC_MODE) return; // no backend to compare against
     const meta = document.querySelector('meta[name="gansi-version"]');
     const notice = document.getElementById('versionNotice');
     if (!meta || !notice) return;
     const bundled = (meta.content || '').trim();
     if (!bundled) return;
-    fetch('/api/health', { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data || !data.version || data.version === bundled) return;
-        notice.hidden = false;
-        const text = document.createElement('span');
-        text.textContent = `এই ট্যাবটি পুরোনো সংস্করণ (${bundled}) চালাচ্ছে; সার্ভারে আছে ${data.version}। নতুন ফিচার পেতে রিলোড করুন।`;
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn-outline';
-        btn.textContent = 'এখনই রিলোড';
-        btn.addEventListener('click', () => location.reload());
-        notice.replaceChildren(text, btn);
+    const showNotice = (liveVersion) => {
+      notice.hidden = false;
+      const text = document.createElement('span');
+      text.textContent = `এই ট্যাবটি পুরোনো সংস্করণ (${bundled}) চালাচ্ছে; এখন আছে ${liveVersion}। নতুন ফিচার পেতে রিলোড করুন।`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-outline';
+      btn.textContent = 'এখনই রিলোড';
+      btn.addEventListener('click', () => location.reload());
+      notice.replaceChildren(text, btn);
+    };
+
+    if (!window.GANSI_STATIC_MODE) {
+      fetch('/api/health', { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.version && data.version !== bundled) showNotice(data.version);
+        })
+        .catch(() => {});
+      return;
+    }
+
+    const swMeta = document.querySelector('meta[name="gansi-sw-version"]');
+    if (!swMeta) return;
+    const bundledSw = Number((swMeta.content || '').trim());
+    if (!Number.isFinite(bundledSw)) return;
+    fetch('/sw.js?check=' + Date.now(), { cache: 'no-store' })
+      .then((res) => (res.ok ? res.text() : null))
+      .then((src) => {
+        if (!src) return;
+        const m = src.match(/CACHE_VERSION\s*=\s*['"]sur-sadhana-v(\d+)['"]/);
+        if (m && Number(m[1]) > bundledSw) showNotice('sur-sadhana-v' + m[1]);
       })
       .catch(() => {});
   })();

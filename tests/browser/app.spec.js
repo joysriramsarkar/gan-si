@@ -414,3 +414,21 @@ test('an outdated cached bundle is flagged with a reload action', async ({ page 
   await expect(page.locator('#versionNotice')).toContainText('পুরোনো');
   await expect(page.locator('#versionNotice button')).toContainText('রিলোড');
 });
+
+test('a stale cached bundle on the static host (Vercel) is flagged with a reload action', async ({ page }) => {
+  // The deployed app has no /api/health, so the check must compare the
+  // bundled SW version with the live /sw.js instead.
+  await page.route('**/static-mode.js', (route) => route.fulfill({
+    status: 200, contentType: 'application/javascript', body: 'window.GANSI_STATIC_MODE = true;'
+  }));
+  await page.route('**/sw.js*', (route) => route.fulfill({
+    status: 200, contentType: 'application/javascript',
+    body: "const CACHE_VERSION = 'sur-sadhana-v99';"
+  }));
+  await page.goto('/');
+  await expect(page.locator('#versionNotice')).toBeVisible();
+  await expect(page.locator('#versionNotice')).toContainText('পুরোনো');
+  // numbers.js localises digits across the document, so 99 reads as ৯৯.
+  await expect(page.locator('#versionNotice')).toContainText('sur-sadhana-v৯৯');
+  await expect(page.locator('#versionNotice button')).toContainText('রিলোড');
+});
