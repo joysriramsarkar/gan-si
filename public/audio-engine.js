@@ -697,6 +697,62 @@ class AudioEngine {
   }
 
   /* ========================================================
+   * 4b. TONE GENERATOR (PitchDiagram adaptation)
+   * Steady reference tone, any freq, waveform switch, no clicks.
+   * ======================================================== */
+  startTone(freq, waveform = 'sine') {
+    this.init();
+    this.stopTone(); // replace, fades out previous
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = waveform;
+    osc.frequency.setValueAtTime(Math.max(20, Math.min(4000, Number(freq) || 440)), now);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.22, now + 0.18);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    this.toneOsc = osc;
+    this.toneGain = gain;
+    this.toneFreq = osc.frequency.value;
+    this.toneWave = waveform;
+    this.isTonePlaying = true;
+  }
+
+  setToneFreq(freq) {
+    if (!this.isTonePlaying || !this.toneOsc) return;
+    const f = Math.max(20, Math.min(4000, Number(freq) || 440));
+    this.toneOsc.frequency.setTargetAtTime(f, this.ctx.currentTime, 0.03);
+    this.toneFreq = f;
+  }
+
+  setToneWave(waveform) {
+    if (!this.isTonePlaying || !this.toneOsc) return;
+    if (['sine', 'triangle', 'square', 'sawtooth'].includes(waveform)) {
+      this.toneOsc.type = waveform;
+      this.toneWave = waveform;
+    }
+  }
+
+  stopTone() {
+    if (!this.isTonePlaying || !this.toneOsc || !this.ctx) { this.isTonePlaying = false; return; }
+    const osc = this.toneOsc;
+    const gain = this.toneGain;
+    const now = this.ctx.currentTime;
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+      setTimeout(() => { try { osc.stop(); osc.disconnect(); gain.disconnect(); } catch (e) {} }, 260);
+    } catch (e) {}
+    this.toneOsc = null;
+    this.toneGain = null;
+    this.isTonePlaying = false;
+  }
+
+  /* ========================================================
    * 5. RECORDING AUDIO (MIC + INSTRUMENTS MIXED)
    * ======================================================== */
   async startRecording(micStream) {
@@ -780,9 +836,10 @@ class AudioEngine {
 
       const interval = this.swaraSeqIntervals[this.swaraSeqIndex];
       const root = this.rootOffset;
-      const noteIdx = (root + interval) % 12;
-      const octave = interval >= 12 ? 5 : 4;
-      const freq = this.getNoteFrequency(noteIdx, octave);
+      // Anchor on the shared middle-Sa (MIDI 48 + root) so sequences rise
+      // monotonically; the old pc+octave-4 wrap dropped an octave mid-scale.
+      const midi = 48 + root + interval;
+      const freq = this.baseFreqA4 * Math.pow(2, (midi - 69) / 12);
 
       this.playHarmoniumNote(freq, 'seq-step');
       setTimeout(() => this.stopHarmoniumNote('seq-step'), 600);

@@ -1,10 +1,13 @@
 const { test, expect } = require('@playwright/test');
 
-test('app loads with all 10 tabs', async ({ page }) => {
+test('app loads with all 11 tabs', async ({ page }) => {
   await page.goto('/');
   await expect(page).toHaveTitle(/গান-সি|সুর সাধনা/);
   const tabs = page.locator('.tab-btn');
-  await expect(tabs).toHaveCount(10);
+  await expect(tabs).toHaveCount(11);
+  await page.click('.tab-btn[data-tab="tab-pianoroll"]');
+  await expect(page.locator('#tab-pianoroll')).toHaveClass(/active/);
+  await expect(page.locator('#pianoRollCanvas')).toBeVisible();
 });
 
 test('tab navigation switches panels', async ({ page }) => {

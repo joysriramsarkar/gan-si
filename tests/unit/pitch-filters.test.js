@@ -35,6 +35,15 @@ describe('pitch filters', () => {
     expect(d).toBeGreaterThan(310);
     expect(d).toBeLessThan(350);
   });
+  test('noise gate thresholds (RiyazDaily modes)', () => {
+    expect(F.gateThreshold('off')).toBeCloseTo(0.003);
+    expect(F.gateThreshold('normal')).toBeCloseTo(0.015);
+    expect(F.gateThreshold('strong')).toBeCloseTo(0.04);
+    expect(F.gateThreshold('auto', 0.01)).toBeCloseTo(0.03);
+    expect(F.gateThreshold('auto', 0.001)).toBeCloseTo(0.008); // floor clamp
+    expect(F.gateThreshold('auto', 0.05)).toBeCloseTo(0.06); // ceiling clamp
+    expect(F.gateThreshold('whatever')).toBeCloseTo(0.015);
+  });
   test('MPM rejects low-level fan hum below gate', () => {
     const d = PitchDetector.mcleodPitch(sine(120, 44100, 2048, 0).map(() => 0.001), 44100);
     expect(d).toBe(-1);

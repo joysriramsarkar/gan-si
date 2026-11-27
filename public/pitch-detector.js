@@ -30,6 +30,10 @@ class PitchDetector {
     // Tuning Mode: 'just_intonation' (Shruti ratios) or 'equal_temperament' (12-TET)
     this.tuningSystem = 'just_intonation';
 
+    // Noise gate: 'auto' | 'normal' | 'strong' | 'off' (RiyazDaily-style).
+    this.noiseGateMode = 'auto';
+    this.noiseFloorRms = null;
+
     // Raga Constraint
     this.activeRaga = null;
     this.practiceDirection = null;
@@ -42,6 +46,8 @@ class PitchDetector {
 
     // Callbacks
     this.onPitchUpdate = null;
+    this.lastPayload = null;
+    this.lastNoteNum = null;
     this.onRangeSample = null;
     this.onSessionStart = null;
     this.onMicEnded = null;   // device unplugged / permission revoked mid-session
@@ -102,7 +108,7 @@ class PitchDetector {
     }
   }
 
-  async startListening() {
+  async startListening(deviceId) {
     if (window.audioEngine) {
       window.audioEngine.init();
       // A suspended AudioContext yields an all-zero analyser buffer forever,
@@ -119,16 +125,17 @@ class PitchDetector {
       throw err;
     }
 
-    // Explicit audio constraints to avoid browser voice processing distortion
+    // Explicit audio constraints to avoid browser voice processing distortion.
+    // Optional exact deviceId (Piano-Roll monitor's mic picker, Singing Carrots-style).
+    const audioConstraints = {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    };
+    if (deviceId) audioConstraints.deviceId = { exact: deviceId };
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
     } catch (err) {
       if (this.onMicError) this.onMicError(err);
       throw err;
@@ -188,6 +195,43 @@ class PitchDetector {
       this.micStream.getTracks().forEach(t => t.stop());
       this.micStream = null;
     }
+  }
+
+  /**
+   * Just-Intonation cents deviation from the nearest Sa below the note.
+   * Pure/static so it is unit-testable. The old code measured from the Sa
+   * *above* the note and folded the result by 100 cents, which flipped the
+   * sign once a note was clearly sharp/flat (e.g. +59c displayed as -41c).
+   */
+  static jiCents(freq, rootOffset, a4 = 440) {
+    const JI = [0, 112, 204, 316, 386, 498, 590, 702, 814, 884, 1018, 1088];
+    const root = ((Number(rootOffset) % 12) + 12) % 12;
+    const noteNum = 12 * (Math.log(freq / a4) / Math.log(2)) + 69;
+    const roundedNote = Math.round(noteNum);
+    const noteIndex = ((roundedNote % 12) + 12) % 12;
+    const sargamIndex = (noteIndex - root + 12) % 12;
+    const saMidi = roundedNote - sargamIndex; // Sa at or below the sung note
+    const saFreq = a4 * Math.pow(2, (saMidi - 69) / 12);
+    const cents = Math.round(1200 * (Math.log(freq / saFreq) / Math.log(2)) - JI[sargamIndex]) || 0;
+    return { cents, sargamIndex, noteIndex, roundedNote };
+  }
+
+  /** RMS gate threshold for the current noise-gate mode (auto = room-adaptive). */
+  gateThresholdFor(rms) {
+    if (typeof window !== 'undefined' && window.PitchFilters && window.PitchFilters.gateThreshold) {
+      return window.PitchFilters.gateThreshold(this.noiseGateMode, this.noiseFloorRms);
+    }
+    if (this.noiseGateMode === 'off') return 0.003;
+    if (this.noiseGateMode === 'strong') return 0.04;
+    if (this.noiseGateMode === 'auto') {
+      const floor = this.noiseFloorRms > 0 ? this.noiseFloorRms : 0.01;
+      return Math.max(0.008, Math.min(0.06, floor * 3));
+    }
+    return 0.015;
+  }
+
+  setNoiseGateMode(mode) {
+    if (['auto', 'normal', 'strong', 'off'].includes(mode)) this.noiseGateMode = mode;
   }
 
   /**
@@ -261,7 +305,15 @@ class PitchDetector {
 
     const buffer = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(buffer);
-    const rawFreq = PitchDetector.mcleodPitch(buffer, window.audioEngine.ctx.sampleRate);
+    // Noise gate: measure room RMS first; Auto learns the floor from silence.
+    let frameRms = 0;
+    for (let i = 0; i < buffer.length; i++) frameRms += buffer[i] * buffer[i];
+    frameRms = Math.sqrt(frameRms / Math.max(1, buffer.length));
+    const gateThreshold = this.gateThresholdFor(frameRms);
+    const rawFreq = PitchDetector.mcleodPitch(buffer, window.audioEngine.ctx.sampleRate, gateThreshold);
+    if (rawFreq <= 0 && frameRms > 0) {
+      this.noiseFloorRms = this.noiseFloorRms == null ? frameRms : this.noiseFloorRms * 0.95 + frameRms * 0.05;
+    }
     // Sustained silence must clear the detector's short-term memory: the old
     // lastStableFreq would otherwise octave-anchor the next phrase to the
     // previous swara instead of the one actually being sung.
@@ -310,19 +362,12 @@ class PitchDetector {
       const sargamText = this.sargamNames[sargamIndex];
       const sargamShortName = this.sargamShort[sargamIndex];
 
-      // Calculate Cents: Support Just Intonation (Shruti) or 12-TET
+      // Calculate Cents: Support Just Intonation (Shruti) or 12-TET.
+      // JI is measured from the Sa at/below the note (see jiCents) — no
+      // 100-cent folding, so a clearly sharp note can never read as flat.
       let cents = 0;
       if (this.tuningSystem === 'just_intonation') {
-        // Calculate frequency ratio from root Sa in current octave
-        const rootMidiInOctave = (octave + 1) * 12 + root;
-        const saFreq = baseA4 * Math.pow(2, (rootMidiInOctave - 69) / 12);
-        const actualCentsAboveSa = 1200 * (Math.log(freq / saFreq) / Math.log(2));
-        const targetShrutiCents = this.justIntonationCents[sargamIndex];
-        // Difference from target Shruti
-        cents = Math.round(actualCentsAboveSa - targetShrutiCents);
-        // Normalize between -50 and +50
-        while (cents > 50) cents -= 100;
-        while (cents < -50) cents += 100;
+        cents = PitchDetector.jiCents(freq, root, baseA4).cents;
       } else {
         cents = Math.floor((noteNum - roundedNote) * 100);
       }
@@ -394,10 +439,13 @@ class PitchDetector {
       };
 
       this.pitchHistory.push(noteNum);
+      this.lastPayload = payload;
+      this.lastNoteNum = noteNum;
       if (this.onPitchUpdate) this.onPitchUpdate(payload);
     } else {
       this.smoothedPitch = null;
       this.pitchHistory.push(null);
+      this.lastPayload = null;
       if (this.onPitchUpdate) this.onPitchUpdate(null);
     }
 

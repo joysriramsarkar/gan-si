@@ -19,4 +19,18 @@ describe('swara mapping', () => {
     expect(Swara.isInTune(11)).toBe(true);
     expect(Swara.isInTune(13)).toBe(false);
   });
+  test('centsOff does not fold by 100 cents (sharp stays sharp)', () => {
+    // Ga whose ET position is 400c above Sa; JI target is 386c. Singing
+    // 45c sharp of ET Ga is 445c above Sa -> +59c from the shruti, not -41.
+    const sa = 261.63;
+    const sharpGa = sa * Math.pow(2, 445 / 1200);
+    expect(Swara.centsOff(sharpGa, sa, 4)).toBe(59);
+    const flatGa = sa * Math.pow(2, 341 / 1200);
+    expect(Swara.centsOff(flatGa, sa, 4)).toBe(-45);
+  });
+  test('solfege mapping (Do Re Mi)', () => {
+    expect(Swara.solfegeOf(0)).toBe('Do');
+    expect(Swara.solfegeOf(7)).toBe('Sol');
+    expect(Swara.solfegeOf(4)).toBe('Mi');
+  });
 });

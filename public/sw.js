@@ -1,5 +1,5 @@
-/* Gan-si SW v14: network-first app shell; public data SWR; private APIs never cached. */
-const CACHE_VERSION = 'sur-sadhana-v14';
+/* Gan-si SW v18: network-first app shell; public data SWR; private APIs never cached. */
+const CACHE_VERSION = 'sur-sadhana-v18';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -12,6 +12,9 @@ const APP_SHELL = [
   '/pitch-detector.js',
   '/app.js',
   '/js/music/swara.js',
+  '/js/music/intervals.js',
+  '/js/music/chords.js',
+  '/js/music/circle.js',
   '/js/music/pitch-filters.js',
   '/js/music/pitch-history.js',
   '/js/music/raga-engine.js',
@@ -23,6 +26,13 @@ const APP_SHELL = [
   '/js/practice/alankar-generator.js',
   '/js/practice/analytics.js',
   '/js/practice/ear-training.js',
+  '/js/practice/interval-trainer.js',
+  '/js/practice/tone-generator.js',
+  '/js/practice/intonation-tracker.js',
+  '/js/ui/spectrum.js',
+  '/js/ui/chord-explorer.js',
+  '/js/ui/circle-of-fifths.js',
+  '/js/ui/piano-roll.js',
   '/js/ui/auth.js',
   '/js/ui/numbers.js',
   '/js/ui/mic-status.js',

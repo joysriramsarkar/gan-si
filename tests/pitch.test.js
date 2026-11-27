@@ -50,6 +50,22 @@ describe('PitchDetector MPM Algorithm', () => {
     }
   });
 
+  test('jiCents measures from the Sa below the note (no 100c sign fold)', () => {
+    // Sa=C. ET Ga is 400c above Sa, JI Ga target 386c. A Ga sung 45c sharp
+    // of ET is +59c from the shruti — the old code reported -41c.
+    const sa = 261.63;
+    const sharpGa = sa * Math.pow(2, 445 / 1200);
+    const r = PitchDetector.jiCents(sharpGa, 0, 440);
+    expect(r.sargamIndex).toBe(4);
+    expect(r.cents).toBe(59);
+    // Same pitch with Sa=A#: F# is ধা♭ (index 8), JI 814c above A#2.
+    const r2 = PitchDetector.jiCents(185, 10, 440);
+    expect(r2.sargamIndex).toBe(8);
+    expect(r2.cents).toBe(-14);
+    // Exact Sa is zero in its own scale.
+    expect(PitchDetector.jiCents(233.08, 10, 440).cents).toBe(0);
+  });
+
   test('session accuracy and pitch history reset on a new listening session', () => {
     const detector = new PitchDetector();
     detector.totalSamples = 50;

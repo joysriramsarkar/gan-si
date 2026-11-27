@@ -183,6 +183,24 @@ document.addEventListener('DOMContentLoaded', () => {
       setMicStatus('error', '❌ মাইক্রোফোনের সংযোগ বিচ্ছিন্ন হয়েছে। ডিভাইস/অনুমতি যাচাই করে আবার «রেওয়াজ শুরু করুন» চাপুন।');
     };
   }
+  // The Piano-Roll tab can start/stop the shared mic on its own; keep the
+  // main mic button + status in sync with whichever surface toggled it.
+  window.addEventListener('gansi:micstate', (e) => {
+    const listening = !!(e.detail && e.detail.listening);
+    if (listening) {
+      requestWakeLock();
+      setMicStatus('ok', '✅ মাইক্রোফোন চালু — গাইলে সুরের রেখা ও স্কোর এখানে ধরা পড়বে।');
+      if (window.__pitchTrail) window.__pitchTrail.start();
+      if (startMicBtn) {
+        startMicBtn.innerHTML = `${uiIcon('stop')} রেওয়াজ থামান`;
+        startMicBtn.classList.remove('btn-primary');
+        startMicBtn.classList.add('btn-danger');
+      }
+    } else {
+      micUiReset();
+      setMicStatus('idle', '⏹ মাইক্রোফোন বন্ধ। শুরু করতে «রেওয়াজ শুরু করুন» চাপুন।');
+    }
+  });
   if (micCheckBtn) {
     micCheckBtn.addEventListener('click', async () => {
       setMicStatus('pending', '⏳ মাইক্রোফোন যাচাই করা হচ্ছে…');
@@ -310,6 +328,70 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ========================================================
+   * 2b. A4 REFERENCE / NOISE GATE / NOTATION (RiyazDaily Pitch Monitor)
+   * + current-scale readout. All persisted locally, all live-applied.
+   * ======================================================== */
+  const NOTE_NAMES_EN = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const currentScaleInfoEl = document.getElementById('currentScaleInfo');
+  const tanpuraScaleLabelEl = document.getElementById('tanpuraScaleLabel');
+  const updateScaleInfo = () => {
+    const root = window.audioEngine ? window.audioEngine.rootOffset : parseInt(scaleSelect.value, 10);
+    const a4 = window.audioEngine ? window.audioEngine.baseFreqA4 : 440;
+    const saFreq = a4 * Math.pow(2, ((48 + root) - 69) / 12);
+    const tuningNames = { 0: 'Sa–Pa', 1: 'Sa–Ma', 2: 'Sa–Ni', 3: 'Sa–Dha' };
+    const tuningId = window.audioEngine ? window.audioEngine.tanpuraTuning : 0;
+    if (currentScaleInfoEl) {
+      currentScaleInfoEl.textContent = `বর্তমান স্কেল: সা = ${NOTE_NAMES_EN[root]} · মধ্য সা ${saFreq.toFixed(1)} Hz · A4 ${a4} Hz`;
+    }
+    if (tanpuraScaleLabelEl) {
+      tanpuraScaleLabelEl.textContent = `তানপুরা: সা = ${NOTE_NAMES_EN[root]} • ${tuningNames[tuningId] || 'Sa–Pa'} — নির্বাচিত ‘সা’ অনুসরণ করে`;
+    }
+  };
+
+  const a4Input = document.getElementById('a4Input');
+  const applyA4 = (val, save = true) => {
+    const v = Math.max(415, Math.min(465, Math.round(Number(val) || 440)));
+    if (window.audioEngine) window.audioEngine.baseFreqA4 = v;
+    if (a4Input) a4Input.value = String(v);
+    if (save) { try { localStorage.setItem('gan-si-a4', String(v)); } catch {} }
+    window.dispatchEvent(new CustomEvent('gansi:a4change', { detail: { a4: v } }));
+    updateScaleInfo();
+    return v;
+  };
+  try { const savedA4 = parseInt(localStorage.getItem('gan-si-a4') || '', 10); if (savedA4 >= 415 && savedA4 <= 465) applyA4(savedA4, false); } catch {}
+  if (a4Input) a4Input.addEventListener('change', () => applyA4(a4Input.value));
+  const a4MinusBtn = document.getElementById('a4MinusBtn');
+  const a4PlusBtn = document.getElementById('a4PlusBtn');
+  if (a4MinusBtn) a4MinusBtn.addEventListener('click', () => applyA4((window.audioEngine ? window.audioEngine.baseFreqA4 : 440) - 1));
+  if (a4PlusBtn) a4PlusBtn.addEventListener('click', () => applyA4((window.audioEngine ? window.audioEngine.baseFreqA4 : 440) + 1));
+
+  const noiseGateSelect = document.getElementById('noiseGateSelect');
+  try {
+    const savedGate = localStorage.getItem('gan-si-noise-gate');
+    if (savedGate && pitchDetector.setNoiseGateMode) pitchDetector.setNoiseGateMode(savedGate);
+    if (noiseGateSelect && savedGate) noiseGateSelect.value = savedGate;
+  } catch {}
+  if (noiseGateSelect) noiseGateSelect.addEventListener('change', () => {
+    if (pitchDetector.setNoiseGateMode) pitchDetector.setNoiseGateMode(noiseGateSelect.value);
+    try { localStorage.setItem('gan-si-noise-gate', noiseGateSelect.value); } catch {}
+  });
+
+  let notationMode = 'indian';
+  const notationSelect = document.getElementById('notationSelect');
+  try {
+    const savedNotation = localStorage.getItem('gan-si-notation');
+    if (['indian', 'western', 'solfege'].includes(savedNotation)) {
+      notationMode = savedNotation;
+      if (notationSelect) notationSelect.value = savedNotation;
+    }
+  } catch {}
+  if (notationSelect) notationSelect.addEventListener('change', () => {
+    notationMode = notationSelect.value;
+    try { localStorage.setItem('gan-si-notation', notationMode); } catch {}
+    if (window.__pitchTrail && window.__pitchTrail.setNotation) window.__pitchTrail.setNotation(notationMode);
+  });
+
+  /* ========================================================
    * 3. STATS & DAILY STREAK INITIALIZATION
    * ======================================================== */
   const loadUserStats = async () => {
@@ -387,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Hook into pitch updates via a global bridge so the section-8 handler
       // (which is assigned later) can push samples without being overwritten.
       window.__pitchTrail = trail;
+      if (trail.setNotation) trail.setNotation(notationMode);
       trail.start();
       resizeCanvas();
 
@@ -465,9 +548,32 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================
    * 7. SCALE SYNC & SWARA MATRIX
    * ======================================================== */
+  // Restore the saved scale before the first render: a chosen Sa used to
+  // reset to A# on every reload, so the monitor and the singer disagreed.
+  try {
+    const savedScale = parseInt(localStorage.getItem('gan-si-scale-root-v1') || '', 10);
+    if (savedScale >= 0 && savedScale <= 11) scaleSelect.value = String(savedScale);
+  } catch {}
+
   const updateScaleMatrix = () => {
     const root = parseInt(scaleSelect.value, 10);
     window.audioEngine.rootOffset = root;
+    try { localStorage.setItem('gan-si-scale-root-v1', String(root)); } catch {}
+    // Follow the new Sa everywhere at once, even while the mic is silent:
+    // pitch-trail grid, scale readout, tanpura label and dependent tools.
+    if (window.__pitchTrail && window.__pitchTrail.setBaseMidi) window.__pitchTrail.setBaseMidi(48 + root);
+    updateScaleInfo();
+    window.dispatchEvent(new CustomEvent('gansi:scalechange', { detail: { root } }));
+    // A drone struck on the old Sa would keep sounding under the new one.
+    if (window.audioEngine.activeHarmoniumDrones && window.audioEngine.activeHarmoniumDrones.size) {
+      [...window.audioEngine.activeHarmoniumDrones].forEach((id) => window.audioEngine.stopHarmoniumNote(id));
+      window.audioEngine.activeHarmoniumDrones.clear();
+      [droneSaBtn, dronePaBtn].forEach((btn) => {
+        if (!btn) return;
+        btn.classList.remove('active');
+        btn.textContent = btn === droneSaBtn ? 'সা সুরতি (Sa Drone)' : 'পা সুরতি (Pa Drone)';
+      });
+    }
 
     if (!swaraMatrix) return;
     swaraMatrix.innerHTML = '';
@@ -502,7 +608,10 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="western-name">${western}</span>
       `;
       chip.addEventListener('click', () => {
-        const freq = window.audioEngine.getNoteFrequency(noteIdx, 4);
+        // Middle-Sa anchored MIDI (48 + root + interval) so the chips rise
+        // in order; the old pc + octave-4 wrap dropped an octave mid-scale.
+        const midi = 48 + root + item.interval;
+        const freq = window.audioEngine.baseFreqA4 * Math.pow(2, (midi - 69) / 12);
         window.audioEngine.playHarmoniumNote(freq, 'preview');
         setTimeout(() => window.audioEngine.stopHarmoniumNote('preview'), 550);
       });
@@ -575,8 +684,10 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    sargamDisplay.textContent = data.sargamShortName;
-    westernDisplay.innerHTML = `নোট: <strong>${data.noteName}</strong> | <strong>${data.freq}</strong> Hz | <strong>${data.cents > 0 ? '+' : ''}${data.cents}</strong> cents (${data.tuningSystem === 'just_intonation' ? 'শ্রুতি' : '12-TET'})`;
+    sargamDisplay.textContent = notationMode === 'western' ? data.noteName
+      : notationMode === 'solfege' ? (window.Swara ? window.Swara.solfegeOf(data.sargamIndex) : data.sargamShortName)
+      : data.sargamShortName;
+    westernDisplay.innerHTML = `নোট: <strong>${data.noteName}</strong> (${data.sargamShortName}) | <strong>${data.freq}</strong> Hz | <strong>${data.cents > 0 ? '+' : ''}${data.cents}</strong> cents (${data.tuningSystem === 'just_intonation' ? 'শ্রুতি' : '12-TET'})`;
     saptakBadge.textContent = data.saptak;
 
     const pct = Math.max(0, Math.min(100, 50 + data.cents));
@@ -650,6 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   tanpuraTuningSelect.addEventListener('change', (e) => {
     window.audioEngine.tanpuraTuning = parseInt(e.target.value, 10);
+    updateScaleInfo();
   });
 
   tanpuraTempoSlider.addEventListener('input', (e) => {
@@ -1329,6 +1441,16 @@ document.addEventListener('DOMContentLoaded', () => {
     stopRagaLesson(false);
     ragaLessonMessage.textContent = `🎉 শিক্ষা-ক্রম সম্পন্ন! পাকড়ের সম্ভাব্য মিল ${Math.round(summary.pakadSimilarity * 100)}% — সহায়ক পরিমাপ, শিল্পের চূড়ান্ত বিচার নয়।`;
   };
+
+  // A scale change re-anchors a prepared lesson on the new Sa (an in-progress
+  // lesson is stopped first, so its targets can never point at the old Sa).
+  window.addEventListener('gansi:scalechange', () => {
+    if (!ragaLessonSession) return;
+    const raga = ragaLessonSession.raga;
+    if (isRagaLessonRunning) stopRagaLesson(false);
+    prepareRagaLesson(raga);
+    ragaLessonMessage.textContent = 'স্কেল বদলেছে — পাঠ নতুন ‘সা’-তে সাজানো হয়েছে।';
+  });
 
   const handleRagaLearningPitch = (data) => {
     if (!isRagaLessonRunning || !ragaLessonSession) return;

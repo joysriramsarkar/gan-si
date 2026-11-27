@@ -167,7 +167,23 @@
       }
       if (targetEvents.length > 240) targetEvents.splice(0, targetEvents.length - 240);
     }
-    function setBaseMidi(midi) { if (midi) baseMidi = midi; }
+    function setBaseMidi(midi) {
+      if (!Number.isFinite(midi)) return;
+      baseMidi = midi;
+      draw(); // the Sa grid must follow a scale change even while silent
+    }
+    let notationMode = 'indian';
+    function setNotation(mode) {
+      if (['indian', 'western', 'solfege'].includes(mode)) { notationMode = mode; draw(); }
+    }
+    function primaryLabel(midiVal) {
+      if (notationMode === 'western') return westernName(Math.round(midiVal));
+      if (notationMode === 'solfege') return (window.Swara ? window.Swara.solfegeOf(shortIdx(midiVal)) : shortSargam(midiVal));
+      return shortSargam(midiVal);
+    }
+    function shortIdx(midiVal) {
+      return ((Math.round(midiVal) - baseMidi) % 12 + 12) % 12;
+    }
     function setHolds(on) { showHolds = !!on; draw(); }
     function setWindow(ms) {
       baseWindowMs = Math.min(HISTORY_MS, Math.max(5000, Number(ms) || HISTORY_MS));
@@ -235,6 +251,8 @@
       const rel = Math.round(midiVal) - baseMidi;
       const idx = ((rel % 12) + 12) % 12;
       const saptak = rel < 0 ? 'মন্দ্র ' : rel >= 12 ? 'তারা ' : 'মধ্য ';
+      if (notationMode === 'western') return saptak + westernName(Math.round(midiVal));
+      if (notationMode === 'solfege') return saptak + (window.Swara ? window.Swara.solfegeOf(idx) : SARGAM_SHORT[idx]);
       return saptak + (idx === 0 && rel >= 12 ? 'সাঁ' : SARGAM_SHORT[idx]);
     }
     function shortSargam(midiVal) {
@@ -459,6 +477,10 @@
         ctx.setLineDash([]);
         const saptak = offset === -12 ? 'মন্দ্র ' : offset === 0 ? 'মধ্য ' : offset === 12 ? 'তারা ' : '';
         const sargam = offset === 12 ? 'সাঁ' : SARGAM_SHORT[idx];
+        const primary = notationMode === 'western' ? westernName(midiVal)
+          : notationMode === 'solfege' ? (window.Swara ? window.Swara.solfegeOf(idx) : sargam)
+          : saptak + sargam;
+        const secondary = notationMode === 'western' ? saptak + sargam : westernName(midiVal);
         if (isSa) {
           ctx.fillStyle = rgba(C.line, 1);
           ctx.beginPath(); ctx.arc(8, y, 3, 0, Math.PI * 2); ctx.fill();
@@ -466,11 +488,11 @@
         ctx.fillStyle = isSa ? rgba(C.line, 1) : inScale ? rgba(C.cardText, 0.92) : rgba(C.label, 0.55);
         ctx.font = (isSa ? 'bold 10.5px' : inScale ? '600 10.5px' : '10.5px') + ' "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(saptak + sargam, 16, y + 4);
+        ctx.fillText(primary, 16, y + 4);
         ctx.fillStyle = inScale ? rgba(C.label, 0.95) : rgba(C.label, 0.5);
         ctx.font = '9.5px "Segoe UI", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(westernName(midiVal), GRID_LEFT - 7, y + 3.5);
+        ctx.fillText(secondary, GRID_LEFT - 7, y + 3.5);
         ctx.textAlign = 'left';
       }
 
@@ -590,7 +612,7 @@
           const cx = (hd.firstX + hd.lastX) / 2;
           if (cx - lastLabelX < 78) continue;
           const dur = (hd.lastT - hd.firstT) / 1000;
-          const txt = shortSargam(hd.note) + ' · ' + toBn(dur.toFixed(1)) + 'সে';
+          const txt = primaryLabel(hd.note) + ' · ' + toBn(dur.toFixed(1)) + 'সে';
           const box = pill(cx - 24, hd.ySum / hd.count - 24, txt, {
             bg: C.cardBg, bgA: 0.92, fg: C.cardSub, border: C.cardBorder, borderA: 1,
             size: 9.5, minX: GRID_LEFT + 2, maxX: plotRight, minY: GRID_TOP + 2, maxY: plb
@@ -840,10 +862,12 @@
     }
 
     return {
-      push, setTarget, setBaseMidi, setWindow, resetView, setHolds, exportPNG,
+      push, setTarget, setBaseMidi, setNotation, setWindow, resetView, setHolds, exportPNG,
       describe, start, stop, clear, resize, draw, stats,
       history: () => history.slice(),
       targetHistory: () => targetEvents.slice(),
+      baseMidi: () => baseMidi,
+      notation: () => notationMode,
       isLive: () => running
     };
   }

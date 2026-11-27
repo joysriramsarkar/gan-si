@@ -12,6 +12,17 @@
     const rms = rmsOf(buf);
     return { rms, voiced: rms >= threshold };
   }
+  // Noise gate (RiyazDaily Pitch Monitor): Off / Normal / Strong are fixed
+  // RMS gates; Auto follows the measured room-noise floor.
+  function gateThreshold(mode, noiseFloorRms) {
+    if (mode === 'off') return 0.003;
+    if (mode === 'strong') return 0.04;
+    if (mode === 'auto') {
+      const floor = Number.isFinite(noiseFloorRms) && noiseFloorRms > 0 ? noiseFloorRms : 0.01;
+      return Math.max(0.008, Math.min(0.06, floor * 3));
+    }
+    return 0.015; // normal
+  }
   function voiceActivity({ rms, freq, rmsThreshold = 0.015, minFreq = 60, maxFreq = 1200 }) {
     if (rms < rmsThreshold) return false;
     if (!Number.isFinite(freq) || freq < minFreq || freq > maxFreq) return false;
@@ -63,7 +74,7 @@
     };
   }
 
-  const api = { rmsOf, rmsGate, voiceActivity, median, ema, octaveFix, confidence, createStabilityTracker };
+  const api = { rmsOf, rmsGate, gateThreshold, voiceActivity, median, ema, octaveFix, confidence, createStabilityTracker };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.PitchFilters = api;
 })(typeof window !== 'undefined' ? window : globalThis);

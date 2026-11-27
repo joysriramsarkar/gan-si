@@ -91,6 +91,7 @@
     <button id="tabbtn-progress" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-progress" tabindex="-1" data-tab="tab-progress"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> আমার অগ্রগতি</button>
     <button id="tabbtn-theory" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-theory" tabindex="-1" data-tab="tab-theory"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> তত্ত্ব কেন্দ্র</button>
     <button id="tabbtn-ear" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-ear" tabindex="-1" data-tab="tab-ear"><svg class="icon" aria-hidden="true"><use href="/icons.svg#headphones"></use></svg> কান সাধনা</button>
+    <button id="tabbtn-pianoroll" class="tab-btn" type="button" role="tab" aria-selected="false" aria-controls="tab-pianoroll" tabindex="-1" data-tab="tab-pianoroll"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> পিয়ানো-রোল মনিটর</button>
   </nav>
 
   <!-- Main Content Container -->
@@ -119,13 +120,37 @@
       <!-- Apaswara Alert -->
       <div id="apaswaraAlert" class="apaswara-alert"></div>
 
-      <!-- Tuning System Toggle Bar -->
-      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:10px;">
+      <!-- Tuning / A4 / Noise gate / Notation bar (RiyazDaily Pitch Monitor) -->
+      <div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
         <span style="font-size:0.75rem;color:var(--text-muted);">টিউনিং মান:</span>
         <select id="tuningSelect" class="btn-outline" aria-label="টিউনিং পদ্ধতি নির্বাচন করুন" style="padding:4px 8px;font-size:0.75rem;cursor:pointer;">
           <option value="just_intonation" selected>২২ শ্রুতি (Just Intonation - শাস্ত্রীয় অনুপাত)</option>
           <option value="equal_temperament">12-TET (সম-বিভক্ত স্কেল)</option>
         </select>
+        <span style="font-size:0.75rem;color:var(--text-muted);">A4 রেফারেন্স:</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;">
+          <button id="a4MinusBtn" class="btn-outline" type="button" style="padding:4px 9px;font-size:0.8rem;" aria-label="A4 কমান">−</button>
+          <input id="a4Input" type="number" min="415" max="465" step="1" value="440" aria-label="A4 ফ্রিকোয়েন্সি (Hz)" style="width:62px;padding:5px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card-subtle);color:var(--text-main);font-size:0.8rem;">
+          <span style="font-size:0.75rem;color:var(--text-muted);">Hz</span>
+          <button id="a4PlusBtn" class="btn-outline" type="button" style="padding:4px 9px;font-size:0.8rem;" aria-label="A4 বাড়ান">+</button>
+        </span>
+        <span style="font-size:0.75rem;color:var(--text-muted);">নয়েজ গেট:</span>
+        <select id="noiseGateSelect" class="btn-outline" aria-label="নয়েজ গেট" style="padding:4px 8px;font-size:0.75rem;cursor:pointer;">
+          <option value="auto" selected>অটো (ঘরের শব্দে খাপ খায়)</option>
+          <option value="normal">সাধারণ</option>
+          <option value="strong">শক্ত (কোলাহলে)</option>
+          <option value="off">বন্ধ (সর্বোচ্চ সংবেদন)</option>
+        </select>
+        <span style="font-size:0.75rem;color:var(--text-muted);">নোটেশন:</span>
+        <select id="notationSelect" class="btn-outline" aria-label="নোটেশন ধরন" style="padding:4px 8px;font-size:0.75rem;cursor:pointer;">
+          <option value="indian" selected>ভারতীয় (সা রে গা)</option>
+          <option value="western">ওয়েস্টার্ন (C D E)</option>
+          <option value="solfege">সোলফেজ (Do Re Mi)</option>
+        </select>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <span id="currentScaleInfo" role="status" aria-live="polite" style="font-size:0.8rem;color:var(--primary);font-weight:600;">বর্তমান স্কেল: সা = A#</span>
+        <span style="font-size:0.75rem;color:var(--text-muted);">🎧 সবচেয়ে নির্ভুল পিচের জন্য হেডফোন ব্যবহার করুন — তানপুরার শব্দ মাইকে ঢুকলে রিডিং দুলতে পারে।</span>
       </div>
 
       <div class="grid-2col">
@@ -213,6 +238,39 @@
           </div>
         </div>
       </div>
+
+      <!-- PitchDiagram tools: Tone Generator + Intonation Tracker + Spectrum -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> টোন জেনারেটর (Tone Generator)</div></div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">স্থির রেফারেন্স সুর — নোট বা Hz বেছে বাজান। ক্লিক ছাড়াই নরম শুরু/শেষ; ওয়েভফর্ম মাঝপথে বদলানো যায়।</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+          <label style="font-size:0.82rem;">ধরন <select id="toneModeSel" class="btn-outline" style="font-size:0.82rem;"><option value="note">নোট</option><option value="frequency">ফ্রিকোয়েন্সি</option></select></label>
+          <label style="font-size:0.82rem;">নোট <select id="toneNoteSel" class="btn-outline" aria-label="টোন নোট" style="font-size:0.82rem;"></select></label>
+          <label style="font-size:0.82rem;">অক্টেভ <select id="toneOctaveSel" class="btn-outline" aria-label="টোন অক্টেভ" style="font-size:0.82rem;"></select></label>
+          <label style="font-size:0.82rem;">Hz <input id="toneFreqInput" type="number" min="20" max="4000" step="0.01" value="440.00" style="width:96px;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card-subtle);color:var(--text-main);" aria-label="ফ্রিকোয়েন্সি (Hz)"></label>
+          <label style="font-size:0.82rem;">ওয়েভ <select id="toneWaveSel" class="btn-outline" style="font-size:0.82rem;"><option value="sine">সাইন</option><option value="triangle">ত্রিভুজ</option><option value="square">বর্গ</option><option value="sawtooth">করাত</option></select></label>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button id="toneToggleBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> টোন চালু করুন</button>
+          <button id="toneSaBtn" class="btn-outline" type="button">সা সেট করুন</button>
+          <span id="toneStatus" role="status" aria-live="polite" style="font-size:0.85rem;color:var(--text-muted);"></span>
+        </div>
+      </div>
+
+      <div class="card" id="intonationCard" style="margin-top:14px;">
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#target"></use></svg> ইন্টোনেশন ট্র্যাকার (Intonation Tracker)</div></div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">মাইক চালু রেখে সুর ধরে রাখুন — ±৫০ cents জুমে দেখুন, ৫০০ms ধরা হলে নিজে লেবেল বসবে। স্কোর নয়, শুধু সহায়ক মাপ।</p>
+        <div id="intonationCents" class="intonation-cents">--</div>
+        <div id="intonationNote" style="font-weight:700;margin:6px 0;">মাইক বন্ধ — রেওয়াজ শুরু করুন</div>
+        <div id="intonationLabel" style="font-size:0.85rem;color:var(--primary);"></div>
+        <div id="intonationDrift" style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> স্পেকট্রাম (Spectrum Analyzer)</div></div>
+        <div class="canvas-wrapper" style="margin-top:8px;"><canvas id="spectrumCanvas" role="img" aria-label="স্পেকট্রাম বিশ্লেষক — ১০ হার্টজ থেকে ২০ কিলোহার্টজ"></canvas>
+        <span id="spectrumStatus" role="status" aria-live="polite" style="font-size:0.8rem;color:var(--text-muted);"></span></div>
+      </div>
     </section>
 
     <!-- 2. TANPURA DRONE TAB -->
@@ -221,6 +279,7 @@
         <div class="card-header">
           <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#tanpura"></use></svg> অ্যাকোস্টিক তানপুরা ড্রোন ও জোয়ারি সিমুলেটর</div>
         </div>
+        <div id="tanpuraScaleLabel" role="status" aria-live="polite" style="font-size:0.85rem;color:var(--primary);font-weight:600;margin-bottom:10px;">তানপুরা: সা = A# • Sa–Pa — নির্বাচিত ‘সা’ অনুসরণ করে</div>
 
         <div class="tanpura-box" id="tanpuraBox">
           <!-- 4 Animated Strings Plucking -->
@@ -321,6 +380,40 @@
         <div class="harmonium-wrapper">
           <div class="piano-keyboard" id="harmoniumKeyboard"></div>
         </div>
+      </div>
+
+      <!-- Chord Explorer (muted.io Piano Chords + Chords in Keys) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> কর্ড এক্সপ্লোরার (Chord Explorer)</div>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;color:var(--text-muted);cursor:pointer;">
+            <input type="checkbox" id="chordArpChk"> আর্পেজিও
+          </label>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">মূল (রুট) + ধরন বেছে বাজান — কীগুলো হারমোনিয়ামে জ্বলবে। muted.io-এর Piano Chords-এর মতোই ১৪ ধরনের কর্ড।</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+          <label style="font-size:0.82rem;">মূল <select id="chordRootSelect" class="btn-outline" aria-label="কর্ডের মূল সুর" style="font-size:0.82rem;"></select></label>
+          <label style="font-size:0.82rem;">ধরন <select id="chordQualitySelect" class="btn-outline" aria-label="কর্ড ধরন" style="font-size:0.82rem;"></select></label>
+          <label style="font-size:0.82rem;">অক্টেভ <select id="chordOctaveSelect" class="btn-outline" aria-label="কর্ড অক্টেভ" style="font-size:0.82rem;"></select></label>
+          <button id="chordPlayBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> কর্ড বাজান</button>
+        </div>
+        <div id="chordInfo" class="chord-info" role="status" aria-live="polite"></div>
+        <div id="chordGrid" class="chord-grid"></div>
+      </div>
+
+      <!-- Diatonic chords -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#pattern"></use></svg> কী-র কর্ড (Chords in Keys)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select id="diatonicKeySelect" class="btn-outline" aria-label="কী" style="font-size:0.8rem;"></select>
+            <select id="diatonicModeSelect" class="btn-outline" aria-label="মোড" style="font-size:0.8rem;">
+              <option value="major">মেজর</option>
+              <option value="minor">মাইনর</option>
+            </select>
+          </div>
+        </div>
+        <div id="diatonicChords"></div>
       </div>
     </section>
 
@@ -497,6 +590,23 @@
         <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> সংগীততত্ত্ব শিক্ষা কেন্দ্র</div><span id="theoryVerifiedBadge" style="font-size:0.75rem;color:var(--text-muted);"></span></div>
         <div id="theoryList" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
+
+      <!-- Circle of Fifths (muted.io) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#chart"></use></svg> সুরচক্র (Circle of Fifths)</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="circleModeSel" class="btn-outline" aria-label="চক্র মোড" style="font-size:0.8rem;">
+              <option value="major">মেজর চক্র</option>
+              <option value="minor">মাইনর চক্র</option>
+            </select>
+            <button id="circlePlayScaleBtn" class="btn-outline" type="button">স্কেল শুনুন</button>
+          </div>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">কোনো কী-তে ক্লিক করলে তার টনিক কর্ড বাজবে এবং নিচে স্কেল, কী-সিগনেচার ও ডায়াটনিক কর্ড দেখাবে।</p>
+        <div id="circleSvgWrap" style="text-align:center;"></div>
+        <div id="circleInfo" class="circle-info" role="status" aria-live="polite" style="margin-top:10px;font-size:0.88rem;line-height:1.7;"></div>
+      </div>
     </section>
 
     <!-- 10. EAR TRAINING TAB -->
@@ -525,6 +635,70 @@
           <button class="btn-outline ear-answer" data-swara="নি">নি</button>
           <button class="btn-outline ear-answer" data-swara="সাঁ">সাঁ</button>
         </div>
+      </div>
+
+      <!-- Interval Training (অন্তরাল সাধনা — muted.io Intervals) -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#headphones"></use></svg> অন্তরাল সাধনা (Interval Training)</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <select id="intervalLevel" class="btn-outline" aria-label="অন্তরাল স্তর" style="font-size:0.8rem;">
+              <option value="easy">সহজ (রে গা মা পা সাঁ)</option>
+              <option value="medium">মধ্য (m2–ট্রাইটোন–P5)</option>
+              <option value="hard" selected>কঠিন (সব সরল অন্তরাল)</option>
+              <option value="compound">যৌগিক (১০ম–দ্বি-অষ্টক)</option>
+            </select>
+            <select id="intervalMode" class="btn-outline" aria-label="বাজানোর ধরন" style="font-size:0.8rem;">
+              <option value="ascending">ক্রমাগত ↑</option>
+              <option value="descending">অভিমুখ ↓</option>
+              <option value="harmony">সমস্বরে</option>
+            </select>
+          </div>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">সা থেকে দুটি সুর শুনুন — <strong>অন্তরাল (দূরত্ব)</strong> কোনটি তা বলুন। muted.io-এর Interval গেমের মতোই খেলা; তোমার ‘সা’ বদলালে সুরও বদলাবে।</p>
+        <div style="display:flex;gap:8px;align-items:center;margin:10px 0;flex-wrap:wrap;">
+          <button id="intervalPlayBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#play"></use></svg> অন্তরাল বাজান</button>
+          <button id="intervalReplayBtn" class="btn-outline" type="button">↻ আবার শুনুন</button>
+          <button id="intervalSkipBtn" class="btn-outline" type="button">⏭ পরেরটি</button>
+          <div>স্কোর: <strong id="intervalScore">0/0</strong></div>
+        </div>
+        <div id="intervalQuestion" style="font-weight:700;margin-bottom:8px;">শুরু করতে “অন্তরাল বাজান” চাপুন</div>
+        <div id="intervalChoices" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">কিবোর্ড: ১–৯, ০, – , = দিয়ে উত্তর দিন (যখন কান-সাধনা ট্যাব খোলা)।</p>
+      </div>
+
+      <!-- Interval reference chart -->
+      <div class="card" style="margin-top:14px;">
+        <div class="card-header"><div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#book"></use></svg> অন্তরাল চার্ট (Intervals Chart)</div></div>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:10px;">প্রতিটি অন্তরাল ক্লিক করলে <strong>সা থেকে</strong> বাজবে। সেমিটোন = পর্দার দূরত্ব; বাংলা নাম + সা→স্বর দেখো।</p>
+        <div id="intervalChart" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </section>
+
+    <!-- 11. PIANO-ROLL PITCH MONITOR TAB (Singing Carrots) -->
+    <section id="tab-pianoroll" class="tab-panel" role="tabpanel" aria-labelledby="tabbtn-pianoroll" tabindex="0">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> পিয়ানো-রোল পিচ মনিটর (Vocal Pitch Monitor)</div>
+          <select id="pianoRollRange" class="btn-outline" aria-label="পিয়ানো রেঞ্জ" style="font-size:0.8rem;">
+            <option value="36-84" selected>পূর্ণ রেঞ্জ C2–C6</option>
+            <option value="48-72">কণ্ঠ রেঞ্জ C3–C5</option>
+            <option value="36-72">নিচু–মধ্য C2–C5</option>
+          </select>
+        </div>
+        <p style="font-size:0.85rem;color:var(--text-muted);">যেকোনো সুর গান আর দেখুন — উপরে সেন্ট-ব্যান্ড, মাঝে কিবোর্ডে লাল পিচ-রেখা, নিচে সময়ের সঙ্গে নামতে থাকা পিয়ানো-রোল। Singing Carrots-এর Pitch Monitor-এর মতো আলাদা দৃশ্য; এই ট্যাব থেকে আলাদাভাবে মাইক চালু/বন্ধ করা যায়।</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
+          <span style="font-size:0.85rem;color:var(--text-muted);">বর্তমান পিচ</span>
+          <strong id="pianoRollNote" style="font-size:1.05rem;color:var(--primary);">-</strong>
+          <label style="font-size:0.82rem;">মাইক <select id="pianoRollMicSelect" class="btn-outline" aria-label="মাইক্রোফোন ডিভাইস" style="font-size:0.82rem;"><option value="">ডিফল্ট মাইক</option></select></label>
+          <button id="pianoRollToggleBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> মনিটর চালু করুন</button>
+          <button id="pianoRollClearBtn" class="btn-outline" type="button">রোল মুছুন</button>
+          <span id="pianoRollStatus" role="status" aria-live="polite" style="font-size:0.82rem;color:var(--text-muted);"></span>
+        </div>
+        <div class="canvas-wrapper" style="margin-top:8px;">
+          <canvas id="pianoRollCanvas" role="img" aria-label="পিয়ানো-রোল পিচ মনিটর — উপরে সেন্ট বিচ্যুতি ব্যান্ড, মাঝে পিয়ানো কিবোর্ড, নিচে স্ক্রলিং পিচ রোল"></canvas>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">(*) ±৫ সেন্ট — প্রশিক্ষিত কানেও প্রায় শোনা যায় না &nbsp;·&nbsp; (**) ±১২ সেন্ট — সাধারণ কানেও স্পষ্ট বিচ্যুতি &nbsp;·&nbsp; হলুদ বিন্দু = আপনার ‘সা’ কী &nbsp;·&nbsp; অডিও এই ডিভাইসেই থাকে, কোথাও যায় না।</p>
       </div>
     </section>
 
@@ -585,6 +759,9 @@
   <!-- Audio and App Scripts -->
   <script src="static-mode.js"></script>
   <script src="js/music/swara.js"></script>
+  <script src="js/music/intervals.js"></script>
+  <script src="js/music/chords.js"></script>
+  <script src="js/music/circle.js"></script>
   <script src="js/music/pitch-filters.js"></script>
   <script src="js/music/pitch-history.js"></script>
   <script src="js/music/raga-engine.js"></script>
@@ -602,6 +779,13 @@
   <script src="js/ui/pitch-trail.js"></script>
   <script src="js/ui/music-data.js"></script>
   <script src="js/practice/ear-training.js"></script>
+  <script src="js/practice/interval-trainer.js"></script>
+  <script src="js/practice/tone-generator.js"></script>
+  <script src="js/practice/intonation-tracker.js"></script>
+  <script src="js/ui/spectrum.js"></script>
+  <script src="js/ui/chord-explorer.js"></script>
+  <script src="js/ui/circle-of-fifths.js"></script>
+  <script src="js/ui/piano-roll.js"></script>
   <script src="audio-engine.js"></script>
   <script src="pitch-detector.js"></script>
   <script src="app.js"></script>
