@@ -308,9 +308,16 @@
       const plotRight = w - GRID_RIGHT;
       const winMs = windowMs();
       const end = endTime();
-      const start = end - winMs;
-      const lo = baseMidi - 12;
-      const hi = baseMidi + 12;
+      // Young session: stretch the trail across the panel instead of squeezing
+      // a few seconds into the far-right sliver of a 60s window. Once the
+      // session is longer than the window this is a normal scrolling view.
+      let start = end - winMs;
+      if (history.length && history[0].t > start + 250) {
+        start = Math.max(history[0].t - 250, end - HISTORY_MS);
+      }
+      const win = Math.max(1000, end - start);
+      let lo = baseMidi - 12;
+      let hi = baseMidi + 12;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = rgba(C.bg, 1);
@@ -321,11 +328,19 @@
       let lastPx = -Infinity;
       for (const s of history) {
         if (s.t < start || s.t > end) continue;
-        const x = xOf(s.t, start, winMs, w);
+        const x = xOf(s.t, start, win, w);
         if (s.midi != null && x - lastPx < 1.4 && visible.length) continue;
         if (s.midi != null) lastPx = x;
-        visible.push({ s, x, y: s.midi == null ? null : yOf(s.midi, lo, hi, h) });
+        visible.push({ s, x, y: null });
       }
+      // If the singer dips below the two-octave grid, widen just enough to
+      // keep the dot visible rather than clipping it off the panel edge.
+      for (const p of visible) {
+        if (p.s.midi == null) continue;
+        if (p.s.midi < lo) lo = Math.floor(p.s.midi) - 1;
+        if (p.s.midi > hi) hi = Math.ceil(p.s.midi) + 1;
+      }
+      for (const p of visible) p.y = p.s.midi == null ? null : yOf(p.s.midi, lo, hi, h);
       const voiced = visible.filter((p) => p.s.midi != null);
 
       // Runs: broken at silence markers or long gaps (shared by both panels).
@@ -364,10 +379,11 @@
       // Time gridlines + axis labels; remember x positions for the ribbon.
       const tickXs = [];
       ctx.font = '10px "Segoe UI", sans-serif';
-      const stepSec = winMs / 1000 > 30 ? 10 : 5;
-      for (let ago = 0; ago * 1000 <= winMs; ago += stepSec) {
+      const winSec = win / 1000;
+      const stepSec = winSec > 40 ? 10 : winSec > 15 ? 5 : winSec > 6 ? 2 : 1;
+      for (let ago = 0; ago * 1000 <= win; ago += stepSec) {
         const t = end - ago * 1000;
-        const x = xOf(t, start, winMs, w);
+        const x = xOf(t, start, win, w);
         tickXs.push(x);
         if (ago > 0) {
           ctx.strokeStyle = rgba(C.grid, 0.55);
@@ -504,7 +520,7 @@
         const from = Math.max(start, e.t);
         const to = Math.min(end, nextT);
         if (to > from && e.midi != null) {
-          targetSegs.push({ x1: xOf(from, start, winMs, w), x2: xOf(to, start, winMs, w), midi: e.midi, tol: e.tol || 12 });
+          targetSegs.push({ x1: xOf(from, start, win, w), x2: xOf(to, start, win, w), midi: e.midi, tol: e.tol || 12 });
         }
       }
       for (const seg of targetSegs) {
@@ -637,9 +653,11 @@
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(last.x, last.y, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         if (!hover) {
-          const headText = sargamOf(last.s.midi) + ' ' + westernName(Math.round(last.s.midi)) + ' ' + signedBn(last.s.cents) + ' সেন্ট';
-          pill(Math.min(last.x + 10, plotRight - 150), last.y - 26, headText,
-            { bg: C.cardBg, bgA: 0.96, fg: C.cardText, border: C.cardBorder, borderA: 1,
+          const hq = qualityOf(last.s);
+          const verdict = hq === 0 ? '✓ সঠিক' : hq === 1 ? '≈ কাছে' : '✗ বেঠিক';
+          const headText = verdict + ' · ' + sargamOf(last.s.midi) + ' ' + westernName(Math.round(last.s.midi)) + ' ' + signedBn(last.s.cents) + ' সেন্ট';
+          pill(Math.min(last.x + 10, plotRight - 200), last.y - 26, headText,
+            { bg: C.cardBg, bgA: 0.96, fg: C.cardText, border: col, borderA: 0.9,
               size: 10, bold: true, minY: GRID_TOP, maxY: plb });
         }
       }
@@ -647,7 +665,7 @@
 
       // Hover crosshair spans both panels.
       if (hover && hover.s && hover.s.midi != null) {
-        const hx = xOf(hover.s.t, start, winMs, w);
+        const hx = xOf(hover.s.t, start, win, w);
         const hy = yOf(hover.s.midi, lo, hi, h);
         ctx.strokeStyle = rgba(C.label, 0.45);
         ctx.lineWidth = 0.8;

@@ -705,6 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // pinned at the last (often far-right) reading until the mic was stopped.
       pitchNeedle.style.left = '50%';
       if (apaswaraAlert) apaswaraAlert.classList.remove('visible');
+      updateGuidedLive(null);
       return;
     }
 
@@ -745,6 +746,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     handleGuidedPracticePitch(data);
+    updateGuidedLive(data);
   };
 
   /* ========================================================
@@ -1088,6 +1090,25 @@ document.addEventListener('DOMContentLoaded', () => {
     return rawTokens.map(tok => tok.trim()).filter(t => t.length > 0);
   };
 
+  // Target MIDI in the octave nearest the singer, so the graph's target line
+  // and tolerance band sit where the voice actually is (a fixed middle-Sa
+  // target could be an octave above a low male voice and look "wrong").
+  const guidedTargetMidiFor = (swaraName, nearMidi) => {
+    const idx = swaraIndexOf(swaraName);
+    if (idx == null) return null;
+    let midi = 48 + pitchDetector.getRootOffset() + idx;
+    if (Number.isFinite(nearMidi)) {
+      while (midi - nearMidi > 6) midi -= 12;
+      while (nearMidi - midi > 6) midi += 12;
+    }
+    return midi;
+  };
+  const setGuidedTarget = (swaraName, nearMidi) => {
+    const midi = guidedTargetMidiFor(swaraName, nearMidi);
+    pitchDetector.practiceTargetMidi = midi;
+    if (window.__pitchTrail) window.__pitchTrail.setTarget(midi, 12);
+  };
+
   const setupGuidedPractice = (alankar) => {
     guidedNotesQueue = parseAlankarSwaras(alankar.notes);
     currentTargetIndex = 0;
@@ -1141,14 +1162,20 @@ document.addEventListener('DOMContentLoaded', () => {
     startGuidedPracticeBtn.style.display = 'none';
     stopGuidedPracticeBtn.style.display = 'inline-flex';
     guidedStatsStrip.style.display = 'flex';
+    setGuidedTarget(guidedNotesQueue[0], pitchDetector.lastPayload && pitchDetector.lastPayload.noteNum);
+    updateGuidedLive(null);
   };
 
   const stopGuidedPractice = (log = true) => {
     isGuidedPracticeRunning = false;
     guidedHoldStart = null;
+    pitchDetector.practiceTargetMidi = null;
+    if (window.__pitchTrail) window.__pitchTrail.setTarget(null, 12);
     if (activePracticeMeta && activePracticeMeta.alankar_id) activePracticeMeta = null;
     startGuidedPracticeBtn.style.display = 'inline-flex';
     stopGuidedPracticeBtn.style.display = 'none';
+    const liveEl = document.getElementById('guidedLiveReadout');
+    if (liveEl) liveEl.hidden = true;
 
     // Whole minutes are logged by the interval logger with alankar_id.
     // Do not add a fixed two-minute session on every stop.
@@ -1161,6 +1188,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (startGuidedPracticeBtn) startGuidedPracticeBtn.addEventListener('click', startGuidedPractice);
   if (stopGuidedPracticeBtn) stopGuidedPracticeBtn.addEventListener('click', stopGuidedPractice);
+
+  // Live verdict line in the alankar arena: correct / near / wrong, with the
+  // note actually heard and the cents, so the singer does not need to switch
+  // to the pitch tab to know whether the phrase is right.
+  function updateGuidedLive(data) {
+    const el = document.getElementById('guidedLiveReadout');
+    if (!el) return;
+    if (!isGuidedPracticeRunning) { el.hidden = true; return; }
+    el.hidden = false;
+    if (!data) {
+      el.className = 'guided-live';
+      el.textContent = '🎤 শুনছি… গাইতে শুরু করুন';
+      return;
+    }
+    const targetSwara = guidedNotesQueue[currentTargetIndex];
+    const targetIdx = swaraIndexOf(targetSwara);
+    let verdict, cls;
+    if (data.isInTune && (targetIdx == null || data.sargamIndex === targetIdx)) { verdict = '✓ সঠিক'; cls = 'ok'; }
+    else if (data.isInTune) { verdict = '≈ সুরে, ভিন্ন স্বর'; cls = 'near'; }
+    else { verdict = '✗ বেঠিক'; cls = 'bad'; }
+    const cents = (data.cents > 0 ? '+' : '') + data.cents;
+    el.className = 'guided-live ' + cls;
+    el.textContent = `${verdict} · শোনা: ${data.sargamShortName} (${cents}¢) · লক্ষ্য: ${targetSwara || '—'}`;
+  }
 
   const handleGuidedPracticePitch = (data) => {
     if (!isGuidedPracticeRunning || currentTargetIndex >= guidedNotesQueue.length) return;
@@ -1199,6 +1250,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const nextCard = document.getElementById(`guided-swara-${currentTargetIndex}`);
           if (nextCard) nextCard.classList.add('target-current');
           if (currentTargetNoteEl) currentTargetNoteEl.textContent = guidedNotesQueue[currentTargetIndex];
+          setGuidedTarget(guidedNotesQueue[currentTargetIndex], data.noteNum);
         } else {
           if (currentTargetNoteEl) currentTargetNoteEl.textContent = "সম্পূর্ণ! 🎉";
           stopGuidedPractice();
@@ -1489,6 +1541,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // A scale change re-anchors a prepared lesson on the new Sa (an in-progress
   // lesson is stopped first, so its targets can never point at the old Sa).
   window.addEventListener('gansi:scalechange', () => {
+    // Alankar practice: the target swara moved with the new Sa, so re-anchor
+    // the graph line too (otherwise it keeps pointing at the old Sa).
+    if (isGuidedPracticeRunning && guidedNotesQueue[currentTargetIndex]) {
+      setGuidedTarget(guidedNotesQueue[currentTargetIndex], pitchDetector.lastPayload && pitchDetector.lastPayload.noteNum);
+    }
     if (!ragaLessonSession) return;
     const raga = ragaLessonSession.raga;
     if (isRagaLessonRunning) stopRagaLesson(false);

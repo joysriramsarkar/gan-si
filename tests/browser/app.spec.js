@@ -456,6 +456,13 @@ test('wrong Sa explains a stuck score, correct Sa scores, silence re-centres the
   await page.click('#startGuidedPracticeBtn');
   await expect(page.locator('#guidedTonicHint')).toBeVisible({ timeout: 8000 });
   await expect(page.locator('#practiceScore')).toHaveText(/^০$/);
+  // Live verdict + the target line follow the practice target.
+  await expect(page.locator('#guidedLiveReadout')).toBeVisible();
+  await expect(page.locator('#guidedLiveReadout')).toContainText('লক্ষ্য: সা');
+  expect(await page.evaluate(() => {
+    const h = window.__pitchTrail.targetHistory();
+    return h[h.length - 1].midi;
+  })).toBe(58); // A#3, the app's Sa with the selector on A#
 
   await page.evaluate(() => {
     const s = document.getElementById('scaleSelect');
@@ -463,6 +470,10 @@ test('wrong Sa explains a stuck score, correct Sa scores, silence re-centres the
   });
   await expect(page.locator('#practiceScore')).not.toHaveText(/^০$/, { timeout: 8000 });
   await expect(page.locator('#currentTargetNote')).toHaveText('রে');
+  expect(await page.evaluate(() => {
+    const h = window.__pitchTrail.targetHistory();
+    return h[h.length - 1].midi;
+  })).not.toBe(null);
 
   await page.evaluate(() => { window.__osc.frequency.value = 40; }); // below detector range = silence
   await expect.poll(async () => page.locator('#pitchNeedle').evaluate((el) => el.style.left)).toBe('50%');
