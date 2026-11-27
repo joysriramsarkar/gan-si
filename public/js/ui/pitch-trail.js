@@ -21,6 +21,9 @@
   const RIBBON_H = 54;
   const RIBBON_GAP = 10;
   const BOTTOM_PAD = 8;
+  // The live head stays in the middle area, with slightly more room behind it
+  // than ahead, so the empty right side does not waste width.
+  const FOCUS_RATIO = 0.6;
 
   function toBn(value) {
     return String(value ?? '').replace(/[0-9]/g, (d) => BN_DIGITS[Number(d)]);
@@ -124,7 +127,8 @@
 
     function resize() {
       const dpr = window.devicePixelRatio || 1;
-      const w = canvas.parentElement ? canvas.parentElement.clientWidth : canvas.width;
+      // clientWidth respects the CSS max-width cap; the parent may be wider.
+      const w = canvas.clientWidth || (canvas.parentElement ? canvas.parentElement.clientWidth : canvas.width);
       // Inline height would override the CSS media query, so choose it here
       // using the same viewport breakpoint as material.css.
       const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
@@ -241,10 +245,10 @@
       const usable = Math.max(1, plotBottom(h) - GRID_TOP);
       return GRID_TOP + (1 - (midiVal - lo) / Math.max(hi - lo, 1)) * usable;
     }
-    // "Now" sits at the centre of the panel; history fills the left half and
-    // the right half is reserved for incoming notes. This is the focus line.
+    // "Now" sits in the middle area (FOCUS_RATIO); history occupies the space
+    // before it and a smaller strip is reserved for incoming notes.
     function xOf(t, start, winMs, w) {
-      const focus = (GRID_LEFT + (w - GRID_RIGHT)) / 2;
+      const focus = GRID_LEFT + plotW(w) * FOCUS_RATIO;
       return GRID_LEFT + ((t - start) / Math.max(winMs, 1)) * Math.max(1, focus - GRID_LEFT);
     }
     function centY(cents, h) {
@@ -317,7 +321,7 @@
       const rb = ribbonBottom(h);
       const zero = ribbonZero(h);
       const plotRight = w - GRID_RIGHT;
-      const focus = (GRID_LEFT + plotRight) / 2; // vertical "now" line
+      const focus = GRID_LEFT + plotW(w) * FOCUS_RATIO; // vertical "now" line
       const win = windowMs();
       const end = endTime();
       // Fixed time axis: now is always at the right edge, the chosen window
@@ -860,7 +864,7 @@
       if (dragging) {
         const dx = pos.x - lastX;
         lastX = pos.x;
-        const span = plotW(cssW()) / 2; // history occupies the left half now
+        const span = plotW(cssW()) * FOCUS_RATIO; // history occupies the area before the focus
         view.pan = clamp(view.pan - dx * (windowMs() / span), 0, HISTORY_MS - windowMs());
         draw();
         return;

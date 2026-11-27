@@ -505,7 +505,8 @@ test('the live head sits on the centre focus line, not at the edge', async ({ pa
     const g = c.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const gridLeft = 98 * dpr, gridRight = 14 * dpr;
-    const focus = Math.round((gridLeft + (c.width - gridRight)) / 2);
+    const plotW = c.width - gridLeft - gridRight;
+    const focus = Math.round(gridLeft + plotW * 0.6);
     const d = g.getImageData(focus - 3, 0, 7, Math.round(c.height * 0.6)).data;
     let accent = 0;
     for (let i = 0; i < d.length; i += 4) {

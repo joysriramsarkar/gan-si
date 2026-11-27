@@ -435,7 +435,11 @@ canvas#pitchCanvas {
     border-top: 1px solid var(--border-color);
     border-bottom: 1px solid var(--border-color);
   }
-  canvas#pitchCanvas { height: 460px; }
+  canvas#pitchCanvas {
+    height: 460px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
 }
 
 /* Swara Guide Matrix */

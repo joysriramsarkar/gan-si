@@ -14,6 +14,7 @@
   const BAND_H = 46;
   const TIME_AXIS_H = 18;
   const WINDOW_SEC = 10;
+  const FOCUS_RATIO = 0.6; // live dot stays mid-area; less empty space on the right
 
   function toBn(v) { return String(v ?? '').replace(/[0-9]/g, (d) => BN[Number(d)]); }
   function pcOf(m) { return ((Math.round(m) % 12) + 12) % 12; }
@@ -121,7 +122,7 @@
       const rollBottom = h - TIME_AXIS_H;
       const rollH = rollBottom - rollTop;
       const rollW = Math.max(1, rollRight - rollX);
-      const focusX = (rollX + rollRight) / 2; // fixed vertical "now" line
+      const focusX = rollX + rollW * FOCUS_RATIO; // fixed vertical "now" line
       const historyW = Math.max(1, focusX - rollX);
       const span = spanFor(w);
       const rootPcVal = rootPc();
