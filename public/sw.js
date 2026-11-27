@@ -25,6 +25,7 @@ const APP_SHELL = [
   '/js/practice/vocal-range.js',
   '/js/practice/alankar-generator.js',
   '/js/practice/analytics.js',
+  '/js/practice/local-stats.js',
   '/js/practice/ear-training.js',
   '/js/practice/interval-trainer.js',
   '/js/practice/tone-generator.js',

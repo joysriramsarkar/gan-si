@@ -7,7 +7,7 @@
 ## 🌟 নতুন ও উন্নত বৈশিষ্ট্যসমূহ (Next-Gen Features)
 
 ### v2.3 — উন্নত পিচ ট্রেইল গ্রাফ (Advanced Pitch Trail Graph)
-- **📈 ট্রেন্ড মাইক্রো-গ্রাফ:** প্রতি ৫০ms একটি নমুনা নেওয়া হয়; ৬০ সেকেন্ড পর্যন্ত ট্রেন্ড দেখা যায়।
+- **📈 ট্রেন্ড মাইক্রো-গ্রাফ:** প্রতি ৫০ms একটি নমুনা; স্থির সময়-উইন্ডো (ডিফল্ট ১৫ সে, ৩০/৬০ সে-ও বাছা যায়) — পুরোনো সুর বাঁ দিয়ে বেরিয়ে যায়।
 - **🎯 টার্গেট লক:** গাইডেড প্র্যাকটিসে টার্গেট-স্বরের চারপাশের ±১২ cents tolerance band সবুজ অঞ্চলে দেখানো হয়; বাইরে গেলে লাল সতর্কতা।
 - **🟢/🔴 টিউন ইন্ডিকেটর:** in-tune হলে সবুজ, out-of-tune হলে লাল রঙে গ্রাফ আঁকা হয়।
 - **🧭 স্বর-গ্রিড:** রাগ/স্কেল অনুযায়ী স্বর-লাইন হাইলাইট; কমল/তীব্র স্বর স্পষ্ট।
@@ -17,7 +17,7 @@
 - **⚡ Perf:** rAF-based redraw, lightweight canvas (no chart library)।
 
 ### v2.2.2 — Bengali digits ও cache fixes
-- **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz, date এবং select option label; ASCII digit দৃশ্যমান হয় না, form/API value ASCII-ই থাকে।
+- **🔢 সব visible সংখ্যা বাংলায়:** timer, stats, BPM, frequency, cents, quiz, date এবং select option label; form/API value ASCII-ই থাকে। ব্যতিক্রম: মিউজিক্যাল নোটের নাম (C4, A#3) Latin digit-এ থাকে।
 - **🔄 SW v8 cache repair:** পুরোনো cached HTML-এ নতুন localization script না থাকলেও নতুন SW installation সব App Shell asset cache-diplোম করে reload নিশ্চিত করে।
 - **🪕 Tanpura spacing fix:** চারটি string label responsive grid-এ; mobile-এ ২×২, desktop-এ ৪ কলাম—overlap হয় না।
 - **🎨 নতুন ডিজাইন:** warm paper background, white matte cards, clay accent, soft elevation; generic black/neon look সরানো হয়েছে।
@@ -90,6 +90,24 @@ npm run dev
 
 ### ৩. ব্রাউজারে অ্যাপটি ওপেন করুন
 👉 **[http://localhost:3000](http://localhost:3000)**
+
+---
+
+## 🌐 ডিপ্লয়মেন্ট মোড (Vercel vs Self-hosted)
+
+এই অ্যাপের দুটি আলাদা মোড আছে — README-এর বাকি অংশ মূলত **full-stack (self-hosted)** মোডের:
+
+| | Vercel / static (`gan-si.vercel.app`) | Self-hosted / Android + backend |
+|---|---|---|
+| Backend / SQLite | **নেই** (`npm run mark:static` → `GANSI_STATIC_MODE=true`) | আছে (Express + SQLite) |
+| রাগ/অলংকার/তত্ত্ব | `public/data/*.json` bundled fallback | `/api/*` |
+| স্ট্রিক, মিনিট, প্রগ্রেস | **এই ডিভাইসে** (`localStorage`, `js/practice/local-stats.js`); Android-এ backend না থাকলেও একই fallback | SQLite (user token অনুযায়ী) |
+| রেকর্ডিং | IndexedDB (ডিভাইসে), কোনো সার্ভার আপলোড নেই | IndexedDB + ঐচ্ছিক server backup |
+| অ্যাকাউন্ট | কোনো শেয়ার্ড অ্যাকাউন্ট নেই — সব ডেটা ডিভাইস-লোকাল | Bearer token (username → token) |
+
+> ⚠️ Vercel-এ ইচ্ছাকৃতভাবে কোনো `/api/*` বা SQLite নেই, তাই "সার্ভারে ডেটা মুছে যাওয়া"র প্রশ্ন ওঠে না — কিন্তু **একাধিক ডিভাইসে সিঙ্কও হয় না**। ক্রস-ডিভাইস সিঙ্ক চাইলে Turso/Supabase-এর মতো ক্লাউড DB যোগ করে self-hosted মোডে চালাতে হবে। অডিও কখনো কোথাও আপলোড হয় না।
+
+**Note names:** বাংলা সংখ্যা লোকালাইজেশন শুধু সাধারণ UI-তে; মিউজিক্যাল নোট (C4, A#3) সবসময় Latin digit-এ থাকে (`data-no-bn-digits`), যাতে ৪/৮ বিভ্রান্তি না হয়।
 
 ---
 

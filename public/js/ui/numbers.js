@@ -12,8 +12,20 @@
     return String(value ?? '').replace(/[0-9]/g, (digit) => BN_DIGITS[Number(digit)]);
   }
 
+  // Musical note names (C4, A#3) must stay in Latin digits — Bengali ৮/৪ can
+  // be misread as 8/4 and confuses learners. Elements opt out with this
+  // attribute (and their whole subtree is skipped).
+  function isProtected(el) {
+    while (el) {
+      if (el.nodeType === 1 && el.hasAttribute && el.hasAttribute('data-no-bn-digits')) return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
   function shouldSkip(node) {
     let el = node.nodeType === 1 ? node : node.parentElement;
+    if (isProtected(el)) return true;
     while (el) {
       if (SKIP_TEXT_TAGS.has(el.tagName)) return true;
       el = el.parentElement;
@@ -28,7 +40,7 @@
   }
 
   function localizeElementAttributes(el) {
-    if (!el || el.nodeType !== 1 || SKIP_ATTRIBUTE_TAGS.has(el.tagName)) return;
+    if (!el || el.nodeType !== 1 || SKIP_ATTRIBUTE_TAGS.has(el.tagName) || isProtected(el)) return;
     for (const name of TEXT_ATTRIBUTES) {
       if (!el.hasAttribute(name)) continue;
       const next = toBengaliDigits(el.getAttribute(name));
@@ -49,7 +61,8 @@
         if (node.nodeType === 3) return shouldSkip(node) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
         // Traverse native controls too. Values and numeric attributes stay
         // ASCII; only user-visible text is localized.
-        return !SKIP_ATTRIBUTE_TAGS.has(node.tagName) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        if (SKIP_ATTRIBUTE_TAGS.has(node.tagName) || isProtected(node)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
       }
     });
     let current = walker.currentNode;

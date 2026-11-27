@@ -19,7 +19,8 @@
   function pcOf(m) { return ((Math.round(m) % 12) + 12) % 12; }
   function westernName(midi) {
     const m = Math.round(midi);
-    return NOTE_NAMES[pcOf(m)] + toBn(Math.floor(m / 12) - 1);
+    // Note names keep Latin octaves (C4, A#3) — Bengali ৪/৮ is misread.
+    return NOTE_NAMES[pcOf(m)] + (Math.floor(m / 12) - 1);
   }
 
   function bindUI() {

@@ -1,6 +1,6 @@
 {
   "name": "gan-si-sur-sadhana",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Sur Sadhana Pro - Indian Classical Vocal Riyaz and Pitch Trainer (Node.js & Express + SQLite)",
   "main": "server.js",
   "scripts": {

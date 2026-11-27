@@ -27,7 +27,8 @@
   }
   function westernName(midi) {
     const idx = ((midi % 12) + 12) % 12;
-    return NOTE_STRINGS[idx] + toBn(Math.floor(midi / 12) - 1);
+    // Note names keep Latin octaves (C4, A#3) — Bengali ৪/৮ is misread.
+    return NOTE_STRINGS[idx] + (Math.floor(midi / 12) - 1);
   }
   function signedBn(n) {
     const v = Math.round(Number(n) || 0);

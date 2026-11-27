@@ -3,14 +3,25 @@
  * Depends on: PracticeAnalytics, AlankarGenerator (optional globals).
  */
 (function () {
+  function localStats() {
+    const local = window.GanSiLocalStats && window.GanSiLocalStats.summary();
+    if (!local) return null;
+    return {
+      totalMinutes: local.totalMinutes,
+      currentStreak: local.currentStreak,
+      weekMinutes: local.weekMinutes,
+      monthMinutes: local.monthMinutes,
+      history: local.history
+    };
+  }
   async function fetchStats(range) {
-    if (window.GANSI_STATIC_MODE) return null; // dashboard shows "--" honestly
+    if (window.GANSI_STATIC_MODE) return localStats(); // static host / APK
     try {
       const f = window.GanSiAuth ? window.GanSiAuth.fetch : fetch;
       const r = await f('/api/stats' + (range && range !== 'all' ? `?range=${range}` : ''));
-      if (!r.ok) return null;
+      if (!r.ok) return localStats(); // backend missing (e.g. Android WebView)
       return await r.json();
-    } catch { return null; }
+    } catch { return localStats(); }
   }
   function renderCalendar(history) {
     const el = document.getElementById('practiceCalendar');

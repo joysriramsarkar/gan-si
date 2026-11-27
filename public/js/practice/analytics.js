@@ -9,8 +9,13 @@
   // instead of the last seven calendar days.
   function dateKey(input) {
     if (input == null) return '';
+    // Already a local day key: never re-parse it through UTC (which can shift
+    // the day backwards in negative-offset time zones).
+    const str = String(input);
+    const plain = str.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (plain) return str;
     const d = input instanceof Date ? input : new Date(input);
-    if (isNaN(d.getTime())) return String(input).slice(0, 10);
+    if (isNaN(d.getTime())) return str.slice(0, 10);
     const p = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }

@@ -7,7 +7,7 @@
   <meta name="description" content="লাইভ ভোকাল পিচ ট্রেইনার, অ্যাকোস্টিক তানপুরা, ভার্চুয়াল হারমোনিয়াম, তবলা তাল ও অলংকার সাধনা প্ল্যাটফর্ম।">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#f5f2ec">
-  <meta name="gansi-version" content="2.8.0">
+  <meta name="gansi-version" content="2.8.1">
   <meta name="gansi-sw-version" content="18">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/main.css">
@@ -165,11 +165,12 @@
             </div>
           </div>
           <div id="micStatus" class="mic-status" data-state="idle" role="status" aria-live="polite">⏹ মাইক্রোফোন বন্ধ। গাইতে «রেওয়াজ শুরু করুন» চাপুন; সমস্যা হলে «মাইক যাচাই»।</div>
+          <div id="feedbackHint" class="mic-status" data-state="warn" role="status" aria-live="polite" hidden style="margin-top:8px;"></div>
 
           <!-- Hero Pitch Box -->
           <div class="pitch-hero" id="pitchHero">
             <div class="octave-badge" id="saptakBadge">মধ্য সপ্তক (মুদারা)</div>
-            <div class="sargam-huge" id="sargamDisplay">--</div>
+            <div class="sargam-huge" id="sargamDisplay" data-no-bn-digits>--</div>
             <div class="note-subdata" id="westernDisplay">নোট: -- | ফ্রিকোয়েন্সি: 0.0 Hz</div>
 
             <!-- Cents Needle Gauge -->
@@ -692,7 +693,7 @@
         <p style="font-size:0.85rem;color:var(--text-muted);">বাঁ দিকে স্থির নোট-লেডার (স্বর + Western নোট), ডান দিকে সময়ের সঙ্গে বাঁ দিকে সরে যাওয়া সুরের রোল; উপরে সেন্ট-মিটার। সুর স্ক্রিনের বাইরে গেলে লেডার নিজে উপর-নিচ সরে যায়। এই ট্যাব থেকেই মাইক চালু/বন্ধ ও ডিভাইস বাছা যায়।</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
           <span style="font-size:0.85rem;color:var(--text-muted);">বর্তমান পিচ</span>
-          <strong id="pianoRollNote" style="font-size:1.05rem;color:var(--primary);">-</strong>
+          <strong id="pianoRollNote" data-no-bn-digits style="font-size:1.05rem;color:var(--primary);">-</strong>
           <label style="font-size:0.82rem;">মাইক <select id="pianoRollMicSelect" class="btn-outline" aria-label="মাইক্রোফোন ডিভাইস" style="font-size:0.82rem;"><option value="">ডিফল্ট মাইক</option></select></label>
           <button id="pianoRollToggleBtn" class="btn-primary" type="button"><svg class="icon" aria-hidden="true"><use href="/icons.svg#mic"></use></svg> মনিটর চালু করুন</button>
           <button id="pianoRollClearBtn" class="btn-outline" type="button">রোল মুছুন</button>
@@ -775,6 +776,7 @@
   <script src="js/practice/vocal-range.js"></script>
   <script src="js/practice/alankar-generator.js"></script>
   <script src="js/practice/analytics.js"></script>
+  <script src="js/practice/local-stats.js"></script>
   <script src="js/ui/auth.js"></script>
   <script src="numbers-repair.js"></script>
   <script src="js/ui/numbers.js"></script>

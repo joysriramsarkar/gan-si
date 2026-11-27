@@ -96,7 +96,7 @@ test('all visible numbers use Bengali digits while form values stay ASCII', asyn
     while ((node = walker.nextNode())) {
       if (!node.nodeValue || !/[0-9]/.test(node.nodeValue)) continue;
       const p = node.parentElement;
-      if (!p || p.closest('script,style,svg,textarea,input,select')) continue;
+      if (!p || p.closest('script,style,svg,textarea,input,select,[data-no-bn-digits]')) continue;
       bad.push(node.nodeValue.trim());
     }
     return bad;
@@ -477,4 +477,52 @@ test('wrong Sa explains a stuck score, correct Sa scores, silence re-centres the
 
   await page.evaluate(() => { window.__osc.frequency.value = 40; }); // below detector range = silence
   await expect.poll(async () => page.locator('#pitchNeedle').evaluate((el) => el.style.left)).toBe('50%');
+});
+
+test('static host reads streak and minutes from local-first storage', async ({ page }) => {
+  await page.route('**/static-mode.js', (route) => route.fulfill({
+    status: 200, contentType: 'application/javascript', body: 'window.GANSI_STATIC_MODE = true;'
+  }));
+  await page.addInitScript(() => {
+    const d = new Date();
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    localStorage.setItem('gan-si-local-stats-v1', JSON.stringify({ days: { [k]: 25 } }));
+  });
+  await page.goto('/');
+  await expect(page.locator('#streakCount')).toHaveText('১');
+  await expect(page.locator('#totalMinsDisplay')).toContainText('২৫');
+});
+
+test('western notation shows C4 (Latin) while the frequency stays Bengali', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    const n = document.getElementById('notationSelect');
+    n.value = 'western';
+    n.dispatchEvent(new Event('change', { bubbles: true }));
+    window.pitchDetector.onPitchUpdate({
+      freq: 261.6, noteNum: 60, cents: 3, noteName: 'C4', noteIndex: 0,
+      sargamText: 'সা (Sa)', sargamShortName: 'সা', sargamIndex: 0,
+      saptak: 'মধ্য সপ্তক', isInTune: true, isApaswara: false,
+      tuningSystem: 'just_intonation', accuracyPercent: 80
+    });
+  });
+  await expect(page.locator('#sargamDisplay')).toHaveText('C4');
+  await expect(page.locator('#westernDisplay')).toContainText('C4');
+  await expect(page.locator('#westernDisplay')).toContainText('২৬১.৬');
+});
+
+test('note names keep Latin octaves while ordinary numbers localise', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    document.getElementById('sargamDisplay').textContent = 'C4';
+    const probe = document.createElement('span');
+    probe.id = 'digitProbe';
+    probe.textContent = 'C4';
+    document.body.appendChild(probe);
+  });
+  // Protected element (this is a musical note) stays C4...
+  await expect(page.locator('#sargamDisplay')).toHaveText('C4');
+  // ...while an ordinary node still gets Bengali digits.
+  await expect(page.locator('#digitProbe')).toHaveText('C৪');
+  await page.evaluate(() => document.getElementById('digitProbe').remove());
 });

@@ -178,6 +178,21 @@ document.addEventListener('DOMContentLoaded', () => {
     micStatusEl.dataset.state = kind;
     micStatusEl.textContent = message;
   };
+  // Singing into the mic while the tanpura plays through speakers makes the
+  // app hear the drone too. Say it plainly once, instead of leaving the singer
+  // to wonder why the pitch line keeps jumping to Pa.
+  function updateFeedbackHint() {
+    const el = document.getElementById('feedbackHint');
+    if (!el) return;
+    const tanpuraOn = !!(window.audioEngine && window.audioEngine.isTanpuraPlaying);
+    const micOn = !!(window.pitchDetector && window.pitchDetector.isListening);
+    const show = tanpuraOn && micOn;
+    if (show === !el.hidden) return;
+    el.hidden = !show;
+    if (show) {
+      el.textContent = '🎧 তানপুরা স্পিকারে বাজছে আর মাইকও খোলা — মাইক ড্রোনের শব্দও ধরে। সঠিক পিচের জন্য হেডফোন ব্যবহার করুন।';
+    }
+  }
   const micFailure = (err) => {
     const msg = (window.GanSiMic && window.GanSiMic.describe)
       ? window.GanSiMic.describe(err)
@@ -221,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
       micUiReset();
       setMicStatus('idle', '⏹ মাইক্রোফোন বন্ধ। শুরু করতে «রেওয়াজ শুরু করুন» চাপুন।');
     }
+    updateFeedbackHint();
   });
   if (micCheckBtn) {
     micCheckBtn.addEventListener('click', async () => {
@@ -362,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tuningNames = { 0: 'Sa–Pa', 1: 'Sa–Ma', 2: 'Sa–Ni', 3: 'Sa–Dha' };
     const tuningId = window.audioEngine ? window.audioEngine.tanpuraTuning : 0;
     if (currentScaleInfoEl) {
-      currentScaleInfoEl.textContent = `বর্তমান স্কেল: সা = ${NOTE_NAMES_EN[root]} · মধ্য সা ${saFreq.toFixed(1)} Hz · A4 ${a4} Hz`;
+      currentScaleInfoEl.innerHTML = `বর্তমান স্কেল: সা = ${NOTE_NAMES_EN[root]} · মধ্য সা ${saFreq.toFixed(1)} Hz · <span data-no-bn-digits>A4</span> ${a4} Hz`;
     }
     if (tanpuraScaleLabelEl) {
       tanpuraScaleLabelEl.textContent = `তানপুরা: সা = ${NOTE_NAMES_EN[root]} • ${tuningNames[tuningId] || 'Sa–Pa'} — নির্বাচিত ‘সা’ অনুসরণ করে`;
@@ -415,17 +431,29 @@ document.addEventListener('DOMContentLoaded', () => {
   /* ========================================================
    * 3. STATS & DAILY STREAK INITIALIZATION
    * ======================================================== */
+  // Render a local-first stats summary into the header.
+  const applyLocalStats = (summary) => {
+    const s = summary || (window.GanSiLocalStats && window.GanSiLocalStats.summary());
+    if (!s) return false;
+    if (streakCount) streakCount.textContent = s.currentStreak || 0;
+    if (totalMinsDisplay) totalMinsDisplay.textContent = `${s.totalMinutes || 0} মি.`;
+    return true;
+  };
   const loadUserStats = async () => {
-    if (window.GANSI_STATIC_MODE) return; // personal stats stay in this device
+    // Static host and offline APK: no /api, read device-local totals.
+    if (window.GANSI_STATIC_MODE) { applyLocalStats(); return; }
     try {
       const res = await (window.GanSiAuth ? window.GanSiAuth.fetch('/api/stats') : fetch('/api/stats'));
       if (res.ok) {
         const stats = await res.json();
         if (streakCount) streakCount.textContent = stats.currentStreak || 1;
         if (totalMinsDisplay) totalMinsDisplay.textContent = `${stats.totalMinutes || 0} মি.`;
+      } else {
+        applyLocalStats(); // backend missing (e.g. Android WebView) — stay useful
       }
     } catch (e) {
       console.warn('Stats API unreachable', e);
+      applyLocalStats();
     }
   };
   loadUserStats();
@@ -712,7 +740,7 @@ document.addEventListener('DOMContentLoaded', () => {
     sargamDisplay.textContent = notationMode === 'western' ? data.noteName
       : notationMode === 'solfege' ? (window.Swara ? window.Swara.solfegeOf(data.sargamIndex) : data.sargamShortName)
       : data.sargamShortName;
-    westernDisplay.innerHTML = `নোট: <strong>${data.noteName}</strong> (${data.sargamShortName}) | <strong>${data.freq}</strong> Hz | <strong>${data.cents > 0 ? '+' : ''}${data.cents}</strong> cents (${data.tuningSystem === 'just_intonation' ? 'শ্রুতি' : '12-TET'})`;
+    westernDisplay.innerHTML = `নোট: <strong data-no-bn-digits>${data.noteName}</strong> (${data.sargamShortName}) | <strong>${data.freq}</strong> Hz | <strong>${data.cents > 0 ? '+' : ''}${data.cents}</strong> cents (${data.tuningSystem === 'just_intonation' ? 'শ্রুতি' : '12-TET'})`;
     saptakBadge.textContent = data.saptak;
 
     const pct = Math.max(0, Math.min(100, 50 + data.cents));
@@ -1856,13 +1884,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Tanpura + open mic through speakers -> suggest headphones.
+    updateFeedbackHint();
+
     // Only count a minute as practiced when the mic actually captured singing.
-    if (!window.GANSI_STATIC_MODE && secondsSpent % 60 === 0 && (!pitchDetector.hasRecentSignal || pitchDetector.hasRecentSignal(60000))) {
-      (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ minutes: 1, ...(activePracticeMeta || {}) })
-      }).then(() => loadUserStats()).catch(() => {});
+    if (secondsSpent % 60 === 0 && (!pitchDetector.hasRecentSignal || pitchDetector.hasRecentSignal(60000))) {
+      if (window.GANSI_STATIC_MODE) {
+        // Local-first on Vercel / offline: keep streak, totals and calendar.
+        applyLocalStats(window.GanSiLocalStats && window.GanSiLocalStats.addMinutes(1));
+      } else {
+        (window.GanSiAuth ? window.GanSiAuth.fetch : fetch)('/api/stats/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ minutes: 1, ...(activePracticeMeta || {}) })
+        }).then(() => loadUserStats()).catch(() => {
+          // Backend unreachable (offline / APK): still count the minute locally.
+          applyLocalStats(window.GanSiLocalStats && window.GanSiLocalStats.addMinutes(1));
+        });
+      }
     }
   }, 1000);
 });
