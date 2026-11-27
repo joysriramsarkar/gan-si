@@ -64,7 +64,9 @@
     const history = [];        // { t, midi|null, inTune, cents }
     const targetEvents = [];   // { t, midi|null, tol } — stepped target history
     let view = { zoom: 1, pan: 0 };
-    let baseWindowMs = HISTORY_MS;
+    // Fixed 15s window by default: practice phrases stay readable immediately;
+    // longer sessions scroll older notes out to the left.
+    let baseWindowMs = 15000;
     let running = false;
     let raf = null;
     let hidden = false;
@@ -310,16 +312,12 @@
       const rb = ribbonBottom(h);
       const zero = ribbonZero(h);
       const plotRight = w - GRID_RIGHT;
-      const winMs = windowMs();
+      const win = windowMs();
       const end = endTime();
-      // Young session: stretch the trail across the panel instead of squeezing
-      // a few seconds into the far-right sliver of a 60s window. Once the
-      // session is longer than the window this is a normal scrolling view.
-      let start = end - winMs;
-      if (history.length && history[0].t > start + 250) {
-        start = Math.max(history[0].t - 250, end - HISTORY_MS);
-      }
-      const win = Math.max(1000, end - start);
+      // Fixed time axis: now is always at the right edge, the chosen window
+      // (15/30/60s) stays constant, and samples older than the window simply
+      // scroll out of view. No stretching the whole session to fit.
+      const start = end - win;
       const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
       const span = mobile ? 17 : 25; // semitones visible at once
       const half = span / 2;
@@ -416,7 +414,7 @@
       const tickXs = [];
       ctx.font = '10px "Segoe UI", sans-serif';
       const winSec = win / 1000;
-      const stepSec = winSec > 40 ? 10 : winSec > 15 ? 5 : winSec > 6 ? 2 : 1;
+      const stepSec = winSec >= 15 ? 5 : winSec > 6 ? 2 : 1;
       for (let ago = 0; ago * 1000 <= win; ago += stepSec) {
         const t = end - ago * 1000;
         const x = xOf(t, start, win, w);
@@ -428,6 +426,8 @@
           ctx.beginPath(); ctx.moveTo(x, GRID_TOP); ctx.lineTo(x, plb); ctx.stroke();
           ctx.setLineDash([]);
         }
+        // Skip the label that would collide with the "now" label on the right.
+        if (ago > 0 && x > plotRight - 30) continue;
         ctx.fillStyle = rgba(C.label, 1);
         ctx.textAlign = ago === 0 ? 'right' : x < GRID_LEFT + 20 ? 'left' : 'center';
         const label = ago === 0 ? 'এখন' : '−' + toBn(ago) + 'সে';

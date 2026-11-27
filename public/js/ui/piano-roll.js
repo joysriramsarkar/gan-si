@@ -287,6 +287,7 @@
       ctx.font = '9px "Segoe UI", sans-serif';
       ctx.fillStyle = colors.label;
       for (const t of tickXs) {
+        if (t.ago > 0 && t.x > rollRight - 30) continue; // don't collide with "এখন"
         ctx.textAlign = t.ago === 0 ? 'right' : 'center';
         ctx.fillText(t.ago === 0 ? 'এখন' : '−' + toBn(t.ago) + 'সে', t.ago === 0 ? rollRight : t.x, h - 5);
       }
