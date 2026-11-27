@@ -16,7 +16,7 @@
 
   const GRID_LEFT = 98;
   const GRID_RIGHT = 14;
-  const GRID_TOP = 20;
+  const GRID_TOP = 28; // a little breathing room before the first note row
   const TIME_AXIS_H = 20;
   const RIBBON_H = 54;
   const RIBBON_GAP = 10;

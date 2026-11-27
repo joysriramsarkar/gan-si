@@ -41,7 +41,7 @@ describe('pitch filters', () => {
     expect(F.gateThreshold('strong')).toBeCloseTo(0.04);
     expect(F.gateThreshold('auto', 0.01)).toBeCloseTo(0.03);
     expect(F.gateThreshold('auto', 0.001)).toBeCloseTo(0.008); // floor clamp
-    expect(F.gateThreshold('auto', 0.05)).toBeCloseTo(0.06); // ceiling clamp
+    expect(F.gateThreshold('auto', 0.05)).toBeCloseTo(0.04); // ceiling clamp — quiet singing still passes
     expect(F.gateThreshold('whatever')).toBeCloseTo(0.015);
   });
   test('MPM rejects low-level fan hum below gate', () => {

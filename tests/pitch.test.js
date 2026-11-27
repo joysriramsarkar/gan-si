@@ -33,6 +33,37 @@ describe('PitchDetector MPM Algorithm', () => {
     expect(detected).toBeLessThan(265);
   });
 
+  test('Detects a quiet sung note (low amplitude) when the gate is lowered', () => {
+    const sampleRate = 44100;
+    const buf = new Float32Array(2048);
+    for (let i = 0; i < buf.length; i++) buf[i] = 0.008 * Math.sin((2 * Math.PI * 220 * i) / sampleRate);
+    expect(PitchDetector.mcleodPitch(buf, sampleRate, 0.005)).toBeGreaterThan(215);
+    expect(PitchDetector.mcleodPitch(buf, sampleRate, 0.005)).toBeLessThan(225);
+  });
+
+  test('DC offset on the mic signal does not hide the pitch', () => {
+    const sampleRate = 44100;
+    const buf = new Float32Array(2048);
+    for (let i = 0; i < buf.length; i++) buf[i] = 0.35 + 0.12 * Math.sin((2 * Math.PI * 294 * i) / sampleRate);
+    const detected = PitchDetector.mcleodPitch(buf, sampleRate, 0.02);
+    expect(detected).toBeGreaterThan(290);
+    expect(detected).toBeLessThan(298);
+  });
+
+  test('holding a note relaxes the noise gate', () => {
+    const previous = global.window;
+    global.window = {}; // exercise the in-class fallback
+    try {
+      const pd = new PitchDetector();
+      const normal = pd.gateThresholdFor(0.01);
+      const held = pd.gateThresholdFor(0.01, true);
+      expect(held).toBeLessThan(normal);
+      expect(held).toBeGreaterThanOrEqual(0.004);
+    } finally {
+      global.window = previous;
+    }
+  });
+
   test('Rejects silence / background noise below threshold', () => {
     const sampleRate = 44100;
     const buf = new Float32Array(2048); // all zeros

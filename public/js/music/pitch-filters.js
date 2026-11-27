@@ -19,7 +19,7 @@
     if (mode === 'strong') return 0.04;
     if (mode === 'auto') {
       const floor = Number.isFinite(noiseFloorRms) && noiseFloorRms > 0 ? noiseFloorRms : 0.01;
-      return Math.max(0.008, Math.min(0.06, floor * 3));
+      return Math.max(0.008, Math.min(0.04, floor * 3));
     }
     return 0.015; // normal
   }

@@ -97,6 +97,7 @@ class PitchDetector {
     this.inTuneSamples = 0;
     this.pitchHistory = [];
     this.rawWindow = [];
+    this.rmsWindow = [];
     this.lastStableFreq = null;
     this.smoothedPitch = null;
     this.lastPitchAt = null;
@@ -216,18 +217,24 @@ class PitchDetector {
     return { cents, sargamIndex, noteIndex, roundedNote };
   }
 
-  /** RMS gate threshold for the current noise-gate mode (auto = room-adaptive). */
-  gateThresholdFor(rms) {
+  /** RMS gate threshold for the current noise-gate mode (auto = room-adaptive).
+   *  `held` lowers the gate briefly while a note is being sustained, so quiet
+   *  syllables between voiced frames are not dropped. */
+  gateThresholdFor(rms, held = false) {
+    let threshold;
     if (typeof window !== 'undefined' && window.PitchFilters && window.PitchFilters.gateThreshold) {
-      return window.PitchFilters.gateThreshold(this.noiseGateMode, this.noiseFloorRms);
-    }
-    if (this.noiseGateMode === 'off') return 0.003;
-    if (this.noiseGateMode === 'strong') return 0.04;
-    if (this.noiseGateMode === 'auto') {
+      threshold = window.PitchFilters.gateThreshold(this.noiseGateMode, this.noiseFloorRms);
+    } else if (this.noiseGateMode === 'off') {
+      threshold = 0.003;
+    } else if (this.noiseGateMode === 'strong') {
+      threshold = 0.04;
+    } else if (this.noiseGateMode === 'auto') {
       const floor = this.noiseFloorRms > 0 ? this.noiseFloorRms : 0.01;
-      return Math.max(0.008, Math.min(0.06, floor * 3));
+      threshold = Math.max(0.008, Math.min(0.04, floor * 3));
+    } else {
+      threshold = 0.015;
     }
-    return 0.015;
+    return held ? Math.max(0.004, threshold * 0.6) : threshold;
   }
 
   setNoiseGateMode(mode) {
@@ -240,9 +247,19 @@ class PitchDetector {
    */
   static mcleodPitch(buf, sampleRate, rmsThreshold = 0.015) {
     const SIZE = buf.length;
+    // Remove DC offset first: a mic with a biased baseline gives a flat NSDF
+    // and the real periodic peak can be missed entirely.
+    let mean = 0;
+    for (let i = 0; i < SIZE; i++) mean += buf[i];
+    mean /= Math.max(1, SIZE);
+    const data = new Float32Array(SIZE);
     let sumSquares = 0;
-    for (let i = 0; i < SIZE; i++) sumSquares += buf[i] * buf[i];
-    const rms = Math.sqrt(sumSquares / SIZE);
+    for (let i = 0; i < SIZE; i++) {
+      const v = buf[i] - mean;
+      data[i] = v;
+      sumSquares += v * v;
+    }
+    const rms = Math.sqrt(sumSquares / Math.max(1, SIZE));
 
     // Silence gate
     if (rms < rmsThreshold) return -1;
@@ -255,8 +272,8 @@ class PitchDetector {
       let r = 0;
       let m = 0;
       for (let i = 0; i < maxTau; i++) {
-        r += buf[i] * buf[i + tau];
-        m += buf[i] * buf[i] + buf[i + tau] * buf[i + tau];
+        r += data[i] * data[i + tau];
+        m += data[i] * data[i] + data[i + tau] * data[i + tau];
       }
       nsdf[tau] = m > 0 ? (2 * r) / m : 0;
     }
@@ -274,10 +291,12 @@ class PitchDetector {
       }
     }
 
-    if (peaks.length === 0 || maxOverall < 0.45) return -1;
+    // A singing voice is noisier than a sine wave; accept weaker peaks rather
+    // than silently treating the phrase as silence.
+    if (peaks.length === 0 || maxOverall < 0.32) return -1;
 
-    // Pick first peak whose height is within 80% of max overall peak (MPM criterion)
-    const threshold = 0.8 * maxOverall;
+    // Pick the first strong peak (MPM criterion, slightly relaxed).
+    const threshold = Math.max(0.72 * maxOverall, 0.28);
     let bestTau = -1;
 
     for (let i = 0; i < peaks.length; i++) {
@@ -309,10 +328,20 @@ class PitchDetector {
     let frameRms = 0;
     for (let i = 0; i < buffer.length; i++) frameRms += buffer[i] * buffer[i];
     frameRms = Math.sqrt(frameRms / Math.max(1, buffer.length));
-    const gateThreshold = this.gateThresholdFor(frameRms);
+    // Median over a few frames keeps one loud click from raising the gate and
+    // hiding the quiet note that follows it.
+    this.rmsWindow = this.rmsWindow || [];
+    this.rmsWindow.push(frameRms);
+    if (this.rmsWindow.length > 6) this.rmsWindow.shift();
+    const smoothRms = (window.PitchFilters && window.PitchFilters.median)
+      ? (window.PitchFilters.median(this.rmsWindow) || frameRms)
+      : frameRms;
+    // While a note is being held, relax the gate so soft syllables survive.
+    const held = this.lastPitchAt != null && (Date.now() - this.lastPitchAt) < 250;
+    const gateThreshold = this.gateThresholdFor(smoothRms, held);
     const rawFreq = PitchDetector.mcleodPitch(buffer, window.audioEngine.ctx.sampleRate, gateThreshold);
-    if (rawFreq <= 0 && frameRms > 0) {
-      this.noiseFloorRms = this.noiseFloorRms == null ? frameRms : this.noiseFloorRms * 0.95 + frameRms * 0.05;
+    if (rawFreq <= 0 && smoothRms > 0) {
+      this.noiseFloorRms = this.noiseFloorRms == null ? smoothRms : this.noiseFloorRms * 0.95 + smoothRms * 0.05;
     }
     // Sustained silence must clear the detector's short-term memory: the old
     // lastStableFreq would otherwise octave-anchor the next phrase to the
@@ -336,7 +365,7 @@ class PitchDetector {
       procFreq = window.PitchFilters.octaveFix(med != null ? med : rawFreq, ref);
     }
 
-    if (procFreq > 60 && procFreq < 1200) {
+    if (procFreq > 50 && procFreq < 1200) {
       this.lastPitchAt = Date.now();
       if (this.smoothedPitch === null) {
         this.smoothedPitch = procFreq;
