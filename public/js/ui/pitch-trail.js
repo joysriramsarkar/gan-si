@@ -241,8 +241,11 @@
       const usable = Math.max(1, plotBottom(h) - GRID_TOP);
       return GRID_TOP + (1 - (midiVal - lo) / Math.max(hi - lo, 1)) * usable;
     }
+    // "Now" sits at the centre of the panel; history fills the left half and
+    // the right half is reserved for incoming notes. This is the focus line.
     function xOf(t, start, winMs, w) {
-      return GRID_LEFT + ((t - start) / Math.max(winMs, 1)) * plotW(w);
+      const focus = (GRID_LEFT + (w - GRID_RIGHT)) / 2;
+      return GRID_LEFT + ((t - start) / Math.max(winMs, 1)) * Math.max(1, focus - GRID_LEFT);
     }
     function centY(cents, h) {
       const half = RIBBON_H / 2 - 6;
@@ -314,6 +317,7 @@
       const rb = ribbonBottom(h);
       const zero = ribbonZero(h);
       const plotRight = w - GRID_RIGHT;
+      const focus = (GRID_LEFT + plotRight) / 2; // vertical "now" line
       const win = windowMs();
       const end = endTime();
       // Fixed time axis: now is always at the right edge, the chosen window
@@ -424,12 +428,12 @@
           ctx.beginPath(); ctx.moveTo(x, GRID_TOP); ctx.lineTo(x, plb); ctx.stroke();
           ctx.setLineDash([]);
         }
-        // Skip the label that would collide with the "now" label on the right.
-        if (ago > 0 && x > plotRight - 30) continue;
+        // Skip the tick that would collide with the "now" label at the focus.
+        if (ago > 0 && x > focus - 30) continue;
         ctx.fillStyle = rgba(C.label, 1);
-        ctx.textAlign = ago === 0 ? 'right' : x < GRID_LEFT + 20 ? 'left' : 'center';
+        ctx.textAlign = ago === 0 ? 'center' : x < GRID_LEFT + 20 ? 'left' : 'center';
         const label = ago === 0 ? 'এখন' : '−' + toBn(ago) + 'সে';
-        ctx.fillText(label, ago === 0 ? plotRight : x < GRID_LEFT + 20 ? GRID_LEFT + 1 : x, plb + 14);
+        ctx.fillText(label, ago === 0 ? focus : x < GRID_LEFT + 20 ? GRID_LEFT + 1 : x, plb + 14);
       }
       ctx.strokeStyle = rgba(C.gridActive, 0.9);
       ctx.lineWidth = 1;
@@ -593,14 +597,20 @@
           { bg: C.target, bgA: 0.92, fg: parseColor('#ffffff'), size: 10, bold: true, minY: GRID_TOP, maxY: plb });
       }
 
-      // "Now" edge line.
-      if (frozenEnd == null) {
-        ctx.strokeStyle = rgba(C.target, 0.35);
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(plotRight - 0.5, GRID_TOP); ctx.lineTo(plotRight - 0.5, plb); ctx.stroke();
-        ctx.setLineDash([]);
-      }
+      // Fixed vertical focus line at the centre — the live head sits here.
+      ctx.strokeStyle = rgba(C.target, 0.75);
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(focus, GRID_TOP); ctx.lineTo(focus, plb); ctx.stroke();
+      ctx.strokeStyle = rgba(C.target, 0.4);
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(focus, rt); ctx.lineTo(focus, rb); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = rgba(C.target, 0.9);
+      ctx.font = '9.5px "Segoe UI", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('এখন', focus, GRID_TOP - 6);
+      ctx.textAlign = 'left';
 
       // ---- Main trail ----
       ctx.save();
@@ -850,7 +860,7 @@
       if (dragging) {
         const dx = pos.x - lastX;
         lastX = pos.x;
-        const span = plotW(cssW());
+        const span = plotW(cssW()) / 2; // history occupies the left half now
         view.pan = clamp(view.pan - dx * (windowMs() / span), 0, HISTORY_MS - windowMs());
         draw();
         return;

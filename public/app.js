@@ -513,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.PitchTrail) {
       const trailSummary = document.getElementById('trailSummary');
       const refreshSummary = () => { if (trailSummary) trailSummary.textContent = trail.describe(); };
-      const trail = window.PitchTrail.create(pitchCanvas, { height: 400, mobileHeight: 360, onStop: refreshSummary });
+      const trail = window.PitchTrail.create(pitchCanvas, { height: 460, mobileHeight: 360, onStop: refreshSummary });
       pitchTrail = trail;
       // Hook into pitch updates via a global bridge so the section-8 handler
       // (which is assigned later) can push samples without being overwritten.

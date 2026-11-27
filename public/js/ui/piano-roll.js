@@ -121,6 +121,8 @@
       const rollBottom = h - TIME_AXIS_H;
       const rollH = rollBottom - rollTop;
       const rollW = Math.max(1, rollRight - rollX);
+      const focusX = (rollX + rollRight) / 2; // fixed vertical "now" line
+      const historyW = Math.max(1, focusX - rollX);
       const span = spanFor(w);
       const rootPcVal = rootPc();
       const middleSa = 48 + rootPcVal;
@@ -239,7 +241,7 @@
       // ---- Time grid (lines inside the roll; labels are drawn after) ----
       const tickXs = [];
       for (let ago = 0; ago <= WINDOW_SEC; ago += (WINDOW_SEC > 8 ? 2 : 1)) {
-        const x = rollX + (1 - ago / WINDOW_SEC) * rollW;
+        const x = rollX + (1 - ago / WINDOW_SEC) * historyW;
         if (ago > 0) {
           ctx.strokeStyle = 'rgba(120,110,95,0.22)';
           ctx.lineWidth = 0.6;
@@ -249,6 +251,12 @@
         }
         tickXs.push({ ago, x });
       }
+      // Fixed vertical focus line — the live dot sits here, not at the edge.
+      ctx.strokeStyle = 'rgba(47,111,94,0.7)';
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.moveTo(focusX, rollTop); ctx.lineTo(focusX, rollBottom); ctx.stroke();
+      ctx.setLineDash([]);
 
       // ---- Pitch trail: vertical bars scrolling right-to-left ----
       const barH = Math.max(2, rollH / span * 0.6);
@@ -256,7 +264,7 @@
         if (s.midi == null) continue;
         const age = (now - s.t) / 1000;
         if (age < 0 || age > WINDOW_SEC) continue;
-        const x = rollX + (1 - age / WINDOW_SEC) * rollW;
+        const x = rollX + (1 - age / WINDOW_SEC) * historyW;
         const y = midiToY(s.midi, lo, span, rollTop, rollH);
         const ac = Math.abs(s.cents);
         ctx.fillStyle = ac <= 12 ? 'rgba(47,111,94,0.85)' : ac <= 25 ? 'rgba(183,121,31,0.85)' : 'rgba(220,38,38,0.85)';
@@ -270,7 +278,7 @@
         ctx.lineWidth = 1.4;
         ctx.beginPath(); ctx.moveTo(rollX, y); ctx.lineTo(rollRight, y); ctx.stroke();
         ctx.fillStyle = '#dc2626';
-        ctx.beginPath(); ctx.arc(rollRight - 5, y, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(focusX, y, 4.5, 0, Math.PI * 2); ctx.fill();
         // cents marker
         const bx = centsToX(Number(p.cents) || 0);
         ctx.strokeStyle = '#dc2626';
@@ -281,7 +289,7 @@
         ctx.fillStyle = colors.label;
         ctx.font = '12px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('মনিটর চালু করে গাইলে এখানে সুরের রোল নামবে', rollX + rollW / 2, rollTop + 30);
+        ctx.fillText('মনিটর চালু করে গাইলে এখানে সুরের রোল নামবে', (rollX + focusX) / 2, rollTop + 30);
         ctx.textAlign = 'left';
       }
       ctx.restore();
@@ -290,9 +298,9 @@
       ctx.font = '9px "Segoe UI", sans-serif';
       ctx.fillStyle = colors.label;
       for (const t of tickXs) {
-        if (t.ago > 0 && t.x > rollRight - 30) continue; // don't collide with "এখন"
-        ctx.textAlign = t.ago === 0 ? 'right' : 'center';
-        ctx.fillText(t.ago === 0 ? 'এখন' : '−' + toBn(t.ago) + 'সে', t.ago === 0 ? rollRight : t.x, h - 5);
+        if (t.ago > 0 && t.x > focusX - 30) continue; // don't collide with "এখন"
+        ctx.textAlign = 'center';
+        ctx.fillText(t.ago === 0 ? 'এখন' : '−' + toBn(t.ago) + 'সে', t.ago === 0 ? focusX : t.x, h - 5);
       }
       ctx.strokeStyle = 'rgba(120,110,95,0.4)';
       ctx.lineWidth = 1;

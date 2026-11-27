@@ -292,7 +292,7 @@ test('pitch trail: two panels, stepped targets, freeze, toolbar and local PNG ex
   expect(result.targets).toContain(55);                // stepped target history
   expect(result.liveAfterStop).toBe(false);            // freeze semantics preserved
   expect(result.summary).toContain('নমুনা');            // screen-reader summary refreshed on stop
-  expect(result.canvasHeight).toBe(400);
+  expect(result.canvasHeight).toBe(460); // desktop graph uses the full-width layout
   expect(result.ribbonToken).not.toBe('');             // cents ribbon is themed
   // New pitch auto-resumes (guided / raga paths).
   expect(await page.evaluate(() => {
@@ -491,6 +491,30 @@ test('static host reads streak and minutes from local-first storage', async ({ p
   await page.goto('/');
   await expect(page.locator('#streakCount')).toHaveText('১');
   await expect(page.locator('#totalMinsDisplay')).toContainText('২৫');
+});
+
+test('the live head sits on the centre focus line, not at the edge', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    window.__pitchTrail.clear();
+    window.__pitchTrail.push({ midi: 60, cents: 0, inTune: true });
+  });
+  await page.waitForTimeout(350);
+  const focusPixels = await page.evaluate(() => {
+    const c = document.getElementById('pitchCanvas');
+    const g = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const gridLeft = 98 * dpr, gridRight = 14 * dpr;
+    const focus = Math.round((gridLeft + (c.width - gridRight)) / 2);
+    const d = g.getImageData(focus - 3, 0, 7, Math.round(c.height * 0.6)).data;
+    let accent = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], gg = d[i + 1], b = d[i + 2];
+      if (gg > 80 && r < 130 && b < 130) accent++;
+    }
+    return { focus, accent };
+  });
+  expect(focusPixels.accent).toBeGreaterThan(0);
 });
 
 test('the swara ladder scrolls with the voice without changing row spacing', async ({ page }) => {
