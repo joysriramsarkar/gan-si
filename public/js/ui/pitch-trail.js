@@ -72,6 +72,10 @@
     let targetMidi = null;
     let targetTolerance = 12;
     let baseMidi = 60;
+    // Vertical viewport: a fixed note ladder on the left that slides up/down
+    // with the voice instead of clipping notes outside a two-octave box.
+    let viewCenter = null;
+    let viewCenterBase = null;
     let showHolds = true;
     let hover = null;
     let dragging = false;
@@ -316,8 +320,34 @@
         start = Math.max(history[0].t - 250, end - HISTORY_MS);
       }
       const win = Math.max(1000, end - start);
-      let lo = baseMidi - 12;
-      let hi = baseMidi + 12;
+      const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+      const span = mobile ? 17 : 25; // semitones visible at once
+      const half = span / 2;
+      if (viewCenter == null || viewCenterBase !== baseMidi) {
+        viewCenter = baseMidi;
+        viewCenterBase = baseMidi;
+      }
+      // Follow the voice: when the note approaches the top/bottom edge, slide
+      // the ladder so the singer stays comfortably in view.
+      const lastVoiced = (() => {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const s = history[i];
+          if (s.t < start || s.t > end) continue;
+          if (s.midi != null) return s;
+        }
+        return null;
+      })();
+      if (lastVoiced) {
+        const margin = 3;
+        let target = viewCenter;
+        if (lastVoiced.midi > viewCenter + half - margin) target = lastVoiced.midi - (half - margin);
+        else if (lastVoiced.midi < viewCenter - half + margin) target = lastVoiced.midi + (half - margin);
+        viewCenter += (target - viewCenter) * 0.22;
+      } else {
+        viewCenter += (baseMidi - viewCenter) * 0.04; // ease home when silent
+      }
+      let lo = viewCenter - half;
+      let hi = viewCenter + half;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = rgba(C.bg, 1);
@@ -333,8 +363,8 @@
         if (s.midi != null) lastPx = x;
         visible.push({ s, x, y: null });
       }
-      // If the singer dips below the two-octave grid, widen just enough to
-      // keep the dot visible rather than clipping it off the panel edge.
+      // A fast glide can briefly leave the followed window; widen just enough
+      // to keep the dot visible rather than clipping it off the panel edge.
       for (const p of visible) {
         if (p.s.midi == null) continue;
         if (p.s.midi < lo) lo = Math.floor(p.s.midi) - 1;
@@ -357,17 +387,23 @@
       }
       if (run.length) runs.push(run);
 
-      // Octave bands.
-      const bandDefs = [
-        { from: lo, to: baseMidi, c: C.line, a: 0.035 },
-        { from: baseMidi, to: baseMidi + 12, c: C.target, a: 0.045 },
-        { from: baseMidi + 12, to: hi, c: C.line, a: 0.035 }
-      ];
-      for (const b of bandDefs) {
-        const y1 = yOf(b.to, lo, hi, h);
-        const y2 = yOf(b.from, lo, hi, h);
-        ctx.fillStyle = rgba(b.c, b.a);
-        ctx.fillRect(GRID_LEFT, y1, plotW(w), y2 - y1);
+      // Piano-style semitone rows: black keys get a faint band so the ladder
+      // reads like a keyboard. Sa's octave keeps a slightly warmer tint.
+      const BLACK_PCS = new Set([1, 3, 6, 8, 10]);
+      const rowTop = Math.ceil(lo - 0.5);
+      const rowBot = Math.floor(hi + 0.5);
+      for (let m = rowTop; m <= rowBot; m++) {
+        const pc = ((m % 12) + 12) % 12;
+        const y1 = yOf(m + 0.5, lo, hi, h);
+        const y2 = yOf(m - 0.5, lo, hi, h);
+        if (BLACK_PCS.has(pc)) {
+          ctx.fillStyle = rgba(C.label, 0.055);
+          ctx.fillRect(GRID_LEFT, y1, plotW(w), Math.max(1, y2 - y1));
+        }
+        if (pc === ((baseMidi % 12) + 12) % 12) {
+          ctx.fillStyle = rgba(C.line, 0.05);
+          ctx.fillRect(GRID_LEFT, y1, plotW(w), Math.max(1, y2 - y1));
+        }
       }
       // Gutter panel + separator (covers both panels).
       ctx.fillStyle = rgba(C.gutter, 1);
@@ -475,40 +511,46 @@
       }
       ctx.restore();
 
-      // ---- Swara grid + gutter labels ----
+      // ---- Full note ladder (fixed gutter) + semitone grid ----
       const activeRaga = (window.pitchDetector && window.pitchDetector.activeRaga) || null;
-      for (let offset = -12; offset <= 12; offset++) {
-        const midiVal = baseMidi + offset;
-        const idx = ((offset % 12) + 12) % 12;
-        const y = yOf(midiVal, lo, hi, h);
+      const WHITE_PCS = new Set([0, 2, 4, 5, 7, 9, 11]);
+      for (let m = rowTop; m <= rowBot; m++) {
+        const idx = ((m - baseMidi) % 12 + 12) % 12;
+        const pc = ((m % 12) + 12) % 12;
         const isSa = idx === 0;
-        const isPa = idx === 7;
+        const y = yOf(m, lo, hi, h);
         const allowed = activeRaga && activeRaga.allowedIntervals
           ? activeRaga.allowedIntervals.includes(idx) : null;
-        const inScale = allowed == null ? (isSa || isPa || [2, 4, 5, 9, 11].includes(idx)) : allowed;
+        const inScale = allowed == null ? [0, 2, 4, 5, 7, 9, 11].includes(idx) : allowed;
+        // Gutter row: white keys light, black keys tinted like a keyboard.
+        const rowTopY = yOf(m + 0.5, lo, hi, h);
+        const rowH = Math.max(1, yOf(m - 0.5, lo, hi, h) - rowTopY);
+        ctx.fillStyle = WHITE_PCS.has(pc) ? rgba(C.gutter, 1) : rgba(C.cardText, 0.10);
+        ctx.fillRect(0, rowTopY, GRID_LEFT, rowH);
         ctx.strokeStyle = isSa ? rgba(C.line, 0.55) : inScale ? rgba(C.gridActive, 0.85) : rgba(C.grid, 0.6);
         ctx.lineWidth = isSa ? 1.4 : inScale ? 1 : 0.7;
         if (!inScale && allowed != null) ctx.setLineDash([2, 4]);
         ctx.beginPath(); ctx.moveTo(GRID_LEFT, y); ctx.lineTo(plotRight, y); ctx.stroke();
         ctx.setLineDash([]);
-        const saptak = offset === -12 ? 'মন্দ্র ' : offset === 0 ? 'মধ্য ' : offset === 12 ? 'তারা ' : '';
-        const sargam = offset === 12 ? 'সাঁ' : SARGAM_SHORT[idx];
-        const primary = notationMode === 'western' ? westernName(midiVal)
+        const rel = m - baseMidi;
+        const saptak = rel <= -12 ? 'মন্দ্র ' : rel >= 12 ? 'তারা ' : '';
+        const sargam = idx === 0 && rel >= 12 ? 'সাঁ' : SARGAM_SHORT[idx];
+        const primary = notationMode === 'western' ? westernName(m)
           : notationMode === 'solfege' ? (window.Swara ? window.Swara.solfegeOf(idx) : sargam)
-          : saptak + sargam;
-        const secondary = notationMode === 'western' ? saptak + sargam : westernName(midiVal);
+          : (isSa ? saptak : '') + sargam;
+        const secondary = notationMode === 'western' ? saptak + sargam : westernName(m);
         if (isSa) {
           ctx.fillStyle = rgba(C.line, 1);
           ctx.beginPath(); ctx.arc(8, y, 3, 0, Math.PI * 2); ctx.fill();
         }
         ctx.fillStyle = isSa ? rgba(C.line, 1) : inScale ? rgba(C.cardText, 0.92) : rgba(C.label, 0.55);
-        ctx.font = (isSa ? 'bold 10.5px' : inScale ? '600 10.5px' : '10.5px') + ' "Segoe UI", sans-serif';
+        ctx.font = (isSa ? 'bold 10px' : inScale ? '600 9.5px' : '9.5px') + ' "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(primary, 16, y + 4);
+        ctx.fillText(primary, 14, y + 3.5);
         ctx.fillStyle = inScale ? rgba(C.label, 0.95) : rgba(C.label, 0.5);
-        ctx.font = '9.5px "Segoe UI", sans-serif';
+        ctx.font = '8.5px "Segoe UI", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(secondary, GRID_LEFT - 7, y + 3.5);
+        ctx.fillText(secondary, GRID_LEFT - 6, y + 3);
         ctx.textAlign = 'left';
       }
 

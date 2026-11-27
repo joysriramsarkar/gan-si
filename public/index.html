@@ -684,12 +684,12 @@
         <div class="card-header">
           <div class="card-title"><svg class="icon" aria-hidden="true"><use href="/icons.svg#keyboard"></use></svg> পিয়ানো-রোল পিচ মনিটর (Vocal Pitch Monitor)</div>
           <select id="pianoRollRange" class="btn-outline" aria-label="পিয়ানো রেঞ্জ" style="font-size:0.8rem;">
-            <option value="36-84" selected>পূর্ণ রেঞ্জ C2–C6</option>
-            <option value="48-72">কণ্ঠ রেঞ্জ C3–C5</option>
-            <option value="36-72">নিচু–মধ্য C2–C5</option>
+            <option value="auto" selected>অটো (কণ্ঠ অনুসরণ)</option>
+            <option value="24">২ অক্টেভ</option>
+            <option value="36">৩ অক্টেভ</option>
           </select>
         </div>
-        <p style="font-size:0.85rem;color:var(--text-muted);">যেকোনো সুর গান আর দেখুন — উপরে সেন্ট-ব্যান্ড, মাঝে কিবোর্ডে লাল পিচ-রেখা, নিচে সময়ের সঙ্গে নামতে থাকা পিয়ানো-রোল। Singing Carrots-এর Pitch Monitor-এর মতো আলাদা দৃশ্য; এই ট্যাব থেকে আলাদাভাবে মাইক চালু/বন্ধ করা যায়।</p>
+        <p style="font-size:0.85rem;color:var(--text-muted);">বাঁ দিকে স্থির নোট-লেডার (স্বর + Western নোট), ডান দিকে সময়ের সঙ্গে বাঁ দিকে সরে যাওয়া সুরের রোল; উপরে সেন্ট-মিটার। সুর স্ক্রিনের বাইরে গেলে লেডার নিজে উপর-নিচ সরে যায়। এই ট্যাব থেকেই মাইক চালু/বন্ধ ও ডিভাইস বাছা যায়।</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;">
           <span style="font-size:0.85rem;color:var(--text-muted);">বর্তমান পিচ</span>
           <strong id="pianoRollNote" style="font-size:1.05rem;color:var(--primary);">-</strong>
@@ -699,7 +699,7 @@
           <span id="pianoRollStatus" role="status" aria-live="polite" style="font-size:0.82rem;color:var(--text-muted);"></span>
         </div>
         <div class="canvas-wrapper" style="margin-top:8px;">
-          <canvas id="pianoRollCanvas" role="img" aria-label="পিয়ানো-রোল পিচ মনিটর — উপরে সেন্ট বিচ্যুতি ব্যান্ড, মাঝে পিয়ানো কিবোর্ড, নিচে স্ক্রলিং পিচ রোল"></canvas>
+          <canvas id="pianoRollCanvas" role="img" aria-label="পিয়ানো-রোল পিচ মনিটর — উপরে সেন্ট মিটার, বাঁ দিকে স্থির নোট-লেডার, ডানে সময়ভিত্তিক স্ক্রলিং সুরের রোল"></canvas>
         </div>
         <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">(*) ±৫ সেন্ট — প্রশিক্ষিত কানেও প্রায় শোনা যায় না &nbsp;·&nbsp; (**) ±১২ সেন্ট — সাধারণ কানেও স্পষ্ট বিচ্যুতি &nbsp;·&nbsp; হলুদ বিন্দু = আপনার ‘সা’ কী &nbsp;·&nbsp; অডিও এই ডিভাইসেই থাকে, কোথাও যায় না।</p>
       </div>
