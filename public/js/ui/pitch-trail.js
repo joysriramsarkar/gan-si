@@ -75,8 +75,11 @@
     let targetMidi = null;
     let targetTolerance = 12;
     let baseMidi = 60;
-    // The note ladder is fixed: both axes are stable. Notes outside the
-    // visible range are simply not drawn (like samples older than the window).
+    // The ladder viewport stays in place; note names slide up/down inside it
+    // with fixed row spacing (no auto-fit). Only the time axis is frozen.
+    let viewCenter = null;
+    let viewCenterBase = null;
+    let lastSpan = 0;
     let showHolds = true;
     let hover = null;
     let dragging = false;
@@ -318,10 +321,34 @@
       // scroll out of view. No stretching the whole session to fit.
       const start = end - win;
       const mobile = !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
-      const span = mobile ? 17 : 25; // semitones visible at once
-      // Fixed note axis centred on Sa: the ladder and its labels never move.
-      const lo = baseMidi - Math.floor(span / 2);
-      const hi = lo + span;
+      // Fewer, widely spaced rows: every swara name gets room to be read.
+      const span = mobile ? 13 : 15;
+      lastSpan = span;
+      const half = span / 2;
+      if (viewCenter == null || viewCenterBase !== baseMidi) {
+        viewCenter = baseMidi;
+        viewCenterBase = baseMidi;
+      }
+      // Slide the ladder (not the row size) so the sung scale stays in view.
+      const lastVoiced = (() => {
+        for (let i = history.length - 1; i >= 0; i--) {
+          const s = history[i];
+          if (s.t < start || s.t > end) continue;
+          if (s.midi != null) return s;
+        }
+        return null;
+      })();
+      if (lastVoiced) {
+        const margin = 3;
+        let target = viewCenter;
+        if (lastVoiced.midi > viewCenter + half - margin) target = lastVoiced.midi - (half - margin);
+        else if (lastVoiced.midi < viewCenter - half + margin) target = lastVoiced.midi + (half - margin);
+        viewCenter += (target - viewCenter) * 0.22;
+      } else {
+        viewCenter += (baseMidi - viewCenter) * 0.04; // ease home when silent
+      }
+      const lo = viewCenter - half;
+      const hi = viewCenter + half;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = rgba(C.bg, 1);
@@ -515,13 +542,13 @@
           ctx.beginPath(); ctx.arc(8, y, 3, 0, Math.PI * 2); ctx.fill();
         }
         ctx.fillStyle = isSa ? rgba(C.line, 1) : inScale ? rgba(C.cardText, 0.92) : rgba(C.label, 0.55);
-        ctx.font = (isSa ? 'bold 10px' : inScale ? '600 9.5px' : '9.5px') + ' "Segoe UI", sans-serif';
+        ctx.font = (isSa ? 'bold 11.5px' : inScale ? '600 10.5px' : '10.5px') + ' "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(primary, 14, y + 3.5);
+        ctx.fillText(primary, 14, y + 4);
         ctx.fillStyle = inScale ? rgba(C.label, 0.95) : rgba(C.label, 0.5);
-        ctx.font = '8.5px "Segoe UI", sans-serif';
+        ctx.font = '9px "Segoe UI", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(secondary, GRID_LEFT - 6, y + 3);
+        ctx.fillText(secondary, GRID_LEFT - 6, y + 3.5);
         ctx.textAlign = 'left';
       }
 
@@ -899,6 +926,7 @@
       targetHistory: () => targetEvents.slice(),
       baseMidi: () => baseMidi,
       notation: () => notationMode,
+      span: () => lastSpan,
       isLive: () => running
     };
   }

@@ -493,7 +493,7 @@ test('static host reads streak and minutes from local-first storage', async ({ p
   await expect(page.locator('#totalMinsDisplay')).toContainText('২৫');
 });
 
-test('the swara ladder stays fixed when the voice leaves the visible range', async ({ page }) => {
+test('the swara ladder scrolls with the voice without changing row spacing', async ({ page }) => {
   await page.goto('/');
   const gutterHash = () => page.evaluate(() => {
     const c = document.getElementById('pitchCanvas');
@@ -510,10 +510,13 @@ test('the swara ladder stays fixed when the voice leaves the visible range', asy
   });
   await page.waitForTimeout(300);
   const before = await gutterHash();
-  // A note far above the fixed ladder must not drag the note names with it.
+  const spanBefore = await page.evaluate(() => window.__pitchTrail.span());
+  // A note far above the ladder scrolls the names up/down...
   await page.evaluate(() => window.__pitchTrail.push({ midi: 95, cents: 0, inTune: true }));
-  await page.waitForTimeout(300);
-  expect(await gutterHash()).toBe(before);
+  await page.waitForTimeout(400);
+  expect(await gutterHash()).not.toBe(before);
+  // ...but the row size / number of visible rows never auto-fits.
+  expect(await page.evaluate(() => window.__pitchTrail.span())).toBe(spanBefore);
 });
 
 test('western notation shows C4 (Latin) while the frequency stays Bengali', async ({ page }) => {

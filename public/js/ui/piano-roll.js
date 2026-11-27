@@ -2,9 +2,9 @@
  * Piano-Roll Pitch Monitor — Singing Carrots-style layout:
  *   fixed note ladder on the left, time-scrolling pitch roll on the right,
  *   cents meter on top.
- * Both axes are fixed: the ladder never slides and notes outside the chosen
- * range are not drawn. Shares the app's mic/pitch detector (no second audio
- * pipeline); audio never leaves the device.
+ * The time axis is fixed; the note ladder slides up/down inside its fixed
+ * viewport with constant row spacing (no auto-fit), following the sung scale.
+ * Shares the app's mic/pitch detector; audio never leaves the device.
  */
 (function (root) {
   const BN = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
@@ -36,6 +36,7 @@
 
     let samples = []; // {t, midi|null, cents}
     let lastPushAt = 0;
+    let center = null; // vertical ladder viewport centre in MIDI
 
     function rootPc() {
       return root.audioEngine && Number.isFinite(root.audioEngine.rootOffset) ? ((root.audioEngine.rootOffset % 12) + 12) % 12 : 10;
@@ -53,7 +54,7 @@
       const mode = (spanSel && spanSel.value) || 'auto';
       if (mode === '36') return 36;
       if (mode === '24') return 24;
-      return w < 480 ? 15 : 21;
+      return w < 480 ? 13 : 15; // widely spaced default rows
     }
 
     function resize() {
@@ -124,11 +125,24 @@
       const rootPcVal = rootPc();
       const middleSa = 48 + rootPcVal;
 
-      // ---- Fixed note ladder: Sa-centred range, labels never slide ----
-      // Notes outside this range are simply not drawn (clipped), like samples
-      // older than the time window. Use the range selector to widen it.
-      const lo = middleSa - Math.floor(span / 2);
-      const hi = lo + span;
+      // ---- Ladder slides inside its fixed viewport (row spacing stays put) ----
+      // Only the time axis is frozen; the swara axis scrolls with the voice so
+      // the scale being sung remains readable.
+      let recentMidi = null;
+      for (let i = samples.length - 1; i >= 0; i--) {
+        if (samples[i].midi != null && now - samples[i].t < 1500) { recentMidi = samples[i].midi; break; }
+      }
+      const target = recentMidi != null ? recentMidi : middleSa;
+      if (center == null) center = target;
+      const half = span / 2;
+      if (recentMidi != null) {
+        if (target > center + half - 3) center = target - (half - 3);
+        else if (target < center - half + 3) center = target + (half - 3);
+      } else {
+        center += (middleSa - center) * 0.03; // ease home when silent
+      }
+      const lo = center - half;
+      const hi = center + half;
 
       ctx.clearRect(0, 0, w, h);
       ctx.fillStyle = colors.bg;
@@ -188,13 +202,13 @@
         }
         // swara (left) + western note (right)
         ctx.fillStyle = isSa ? colors.line : black ? '#2a3444' : '#3b3330';
-        ctx.font = (isSa ? 'bold 9.5px' : '9.5px') + ' "Segoe UI", sans-serif';
+        ctx.font = (isSa ? 'bold 11px' : '11px') + ' "Segoe UI", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(SARGAM[((m - middleSa) % 12 + 12) % 12], 6, y1 + rowH / 2 + 3.2);
+        ctx.fillText(SARGAM[((m - middleSa) % 12 + 12) % 12], 6, y1 + rowH / 2 + 4);
         ctx.fillStyle = black ? '#e8edf5' : '#6b625a';
-        ctx.font = '9px "Segoe UI", sans-serif';
+        ctx.font = '9.5px "Segoe UI", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(westernName(m), ladderW - 19, y1 + rowH / 2 + 3.2);
+        ctx.fillText(westernName(m), ladderW - 19, y1 + rowH / 2 + 4);
         // row separator
         ctx.strokeStyle = 'rgba(120,110,95,0.22)';
         ctx.lineWidth = 0.6;
@@ -346,7 +360,8 @@
       window.dispatchEvent(new CustomEvent('gansi:micstate', { detail: { listening: pd.isListening } }));
       syncToggleLabel();
     });
-    if (clearBtn) clearBtn.addEventListener('click', () => { samples = []; });
+    if (clearBtn) clearBtn.addEventListener('click', () => { samples = []; center = null; });
+    if (spanSel) spanSel.addEventListener('change', () => { center = null; });
     window.addEventListener('gansi:micstate', syncToggleLabel);
     window.addEventListener('resize', resize);
 
